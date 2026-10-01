@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Inventário de Patrimônio - FZEA</title>
+  <style>
+    * { 
+      box-sizing: border-box; 
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; 
+    }
+    body { 
+      margin: 0; 
+      padding: 15px; 
+      background: #f4f6f8; 
+      color: #333; 
+    }
+    h1, h2, h3 { 
+      margin-top: 0; 
+    }
+    .card { 
+      background: white; 
+      border-radius: 10px; 
+      padding: 15px; 
+      margin-bottom: 15px; 
+      box-shadow: 0 2px 5px rgba(0,0,0,0.08); 
+    }
+    input, select, button { 
+      width: 100%; 
+      padding: 12px; 
+      margin-top: 8px; 
+      border-radius: 6px; 
+      border: 1px solid #ccc; 
+      font-size: 16px; 
+    }
+    button { 
+      background: #0066cc; 
+      color: white; 
+      font-weight: bold; 
+      border: none; 
+      cursor: pointer; 
+    }
+    button:active { 
+      background: #004bb3; 
+    }
+    #interactive { 
+      width: 100%; 
+      max-width: 500px; 
+      margin: 0 auto; 
+      overflow: hidden; 
+      border-radius: 8px; 
+    }
+    .status-ok { 
+      background: #d4edda; 
+      color: #155724; 
+      border-left: 5px solid #28a745; 
+    }
+    .status-warning { 
+      background: #fff3cd; 
+      color: #856404; 
+      border-left: 5px solid #ffc107; 
+    }
+    .status-danger { 
+      background: #f8d7da; 
+      color: #721c24; 
+      border-left: 5px solid #dc3545; 
+    }
+    .result-box { 
+      padding: 12px; 
+      margin-top: 10px; 
+      border-radius: 6px; 
+    }
+    .history-item { 
+      display: flex; 
+      justify-content: space-between; 
+      padding: 8px 0; 
+      border-bottom: 1px solid #eee; 
+      font-size: 14px; 
+    }
+  </style>
+  <!-- Biblioteca de leitura de código de barras em câmara -->
+  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+</head>
+<body>
+
+  <h1>🏢 Inventário de Patrimônio</h1>
+
+  <!-- Passo 1: Ficheiro e Localização -->
+  <div class="card">
+    <h3>1. Arquivo e Localização</h3>
+    
+    <label><strong>Importar Ficheiro CSV (ex.: Patrimonio RNR OUT26.csv):</strong></label>
+    <input type="file" id="csvFileInput" accept=".csv">
+    
+    <label style="margin-top: 15px; display: block;"><strong>Selecione ou Digite o Local/Sala Atual:</strong></label>
+    <select id="roomSelect" onchange="syncRoomInput(this.value)">
+      <option value="">-- Carregue o CSV para listar as salas --</option>
+    </select>
+    <input type="text" id="currentRoom" placeholder="Ex: Sala 101 ou Bloco A">
+  </div>
+
+  <!-- Passo 2: Digitalização -->
+  <div class="card">
+    <h3>2. Leitura de Código de Barras</h3>
+    <button id="btnStartScan" onclick="toggleScanner()">📷 Ligar Câmera / Escanear</button>
+    <div id="interactive" style="margin-top: 10px;"></div>
+    <div id="scanResult"></div>
+  </div>
+
+  <!-- Passo 3: Estado e Exportação -->
+  <div class="card">
+    <h3>3. Estado do Inventário</h3>
+    <p>Total na Base: <strong id="totalCount">0</strong></p>
+    <p>Auditados/Conferidos: <strong id="auditedCount">0</strong></p>
+    
+    <button onclick="exportCSV()" style="background: #28a745;">📥 Baixar CSV Atualizado</button>
+    
+    <h4 style="margin-top: 20px;">Últimas Leituras:</h4>
+    <div id="historyList"></div>
+  </div>
+
+  <script>
+    let rawHeaders = [];
+    let database = [];
+    let html5QrcodeScanner = null;
+    let isScanning = false;
+
+    // Variáveis para controle de fluxo contínuo
+    let isProcessing = false;
+    let lastScannedCode = null;
+    let lastScanTime = 0;
+
+    // Normalização mantendo caracteres alfanuméricos e zeros à esquerda
+    function normalizeCode(code) {
+      if (!code) return '';
+      return code.toString().trim().replace(/[^a-zA-Z0-9]/g, '');
+    }
+
+    // Sinais Sonoros de Feedback
+    function playBeep(type) {
+      try {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+
+        if (type === 'ok') {
+          osc.frequency.value = 800; gain.gain.value = 0.1;
+          osc.start(); osc.stop(ctx.currentTime + 0.15);
+        } else if (type === 'warning') {
+          osc.frequency.value = 400; gain.gain.value = 0.2;
+          osc.start(); osc.stop(ctx.currentTime + 0.3);
+        } else if (type === 'danger') {
+          osc.frequency.value = 250; gain.gain.value = 0.3;
+          osc.start(); osc.stop(ctx.currentTime + 0.4);
+        }
+      } catch(e){}
+    }
+
+    // Leitura e Processamento do CSV
+    document.getElementById('csvFileInput').addEventListener('change', function(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = function(evt) {
+        parseCSVContent(evt.target.result);
+      };
+      reader.readAsText(file, 'UTF-8');
+    });
+
+    function parseCSVContent(text) {
+      const lines = text.split(/\r?\n/).filter(line => line.trim() !== '');
+      if (lines.length === 0) return;
+
+      const delimiter = text.includes(';') ? ';' : ',';
+
+      function splitRow(rowStr) {
+        const regex = new RegExp(`(?:^|${delimiter})(?:"([^"]*)"|([^"${delimiter}]*))`, 'g');
+        const matches = [];
+        let match;
+        while ((match = regex.exec(rowStr)) !== null) {
+          let val = match[1] !== undefined ? match[1] : match[2];
+          matches.push(val ? val.trim() : '');
+        }
+        return matches;
+      }
+
+      rawHeaders = splitRow(lines[0]);
+      database = [];
+      const roomSet = new Set();
+
+      for (let i = 1; i < lines.length; i++) {
+        const cols = splitRow(lines[i]);
+        if (cols.length > 0) {
+          const item = {
+            patrimonio: cols[0] || '', unidade: cols[1] || '', centroGerencial: cols[2] || '',
+            material: cols[3] || '', marca: cols[4] || '', modelo: cols[5] || '',
+            tipo: cols[6] || '', noSerie: cols[7] || '', valor: cols[8] || '',
+            resp: cols[9] || '', situacao: cols[10] || '', condicao: cols[11] || '',
+            inventario: cols[12] || 'Pendente', retirado: cols[13] || '',
+            localEncontrado: cols[14] || '', dataLeitura: cols[15] || ''
+          };
+          database.push(item);
+          if (item.centroGerencial) roomSet.add(item.centroGerencial);
+        }
+      }
+
+      const select = document.getElementById('roomSelect');
+      select.innerHTML = '<option value="">-- Selecione uma sala da lista --</option>';
+      roomSet.forEach(room => {
+        const opt = document.createElement('option');
+        opt.value = room; opt.innerText = room;
+        select.appendChild(opt);
+      });
+
+      updateCounters();
+      document.getElementById('scanResult').innerHTML = `<div class="result-box status-ok">✅ CSV Carregado com sucesso: ${database.length} itens.</div>`;
+    }
+
+    function syncRoomInput(val) {
+      if (val) document.getElementById('currentRoom').value = val;
+    }
+
+    // Controle da Câmera
+    function toggleScanner() {
+      const btn = document.getElementById('btnStartScan');
+      if (isScanning) {
+        stopScanner();
+        btn.innerText = "📷 Ligar Câmera / Escanear";
+        isScanning = false;
+      } else {
+        startScanner();
+        btn.innerText = "🛑 Parar Câmera";
+        isScanning = true;
+      }
+    }
+
+    function startScanner() {
+      const formatsToSupport = [
+        Html5QrcodeSupportedFormats.CODE_128,
+        Html5QrcodeSupportedFormats.CODE_39,
+        Html5QrcodeSupportedFormats.EAN_13,
+        Html5QrcodeSupportedFormats.ITF,
+        Html5QrcodeSupportedFormats.UPC_A
+      ];
+
+      html5QrcodeScanner = new Html5Qrcode("interactive", { formatsToSupport: formatsToSupport, verbose: false });
+
+      const config = {
+        fps: 15,
+        qrbox: { width: 320, height: 100 },
+        videoConstraints: {
+          facingMode: "environment",
+          width: { min: 1280, ideal: 1920 },
+          height: { min: 720, ideal: 1080 }
+        },
+        experimentalFeatures: { useBarCodeDetectorIfSupported: true }
+      };
+
+      html5QrcodeScanner.start(
+        { facingMode: "environment" },
+        config,
+        onBarcodeScanned
+      ).catch(err => {
+        document.getElementById('scanResult').innerHTML = `<div class="result-box status-danger">Erro de Câmera: ${err}</div>`;
+      });
+    }
+
+    function stopScanner() {
+      if (html5QrcodeScanner) {
+        html5QrcodeScanner.stop().then(() => {
+          document.getElementById('interactive').innerHTML = '';
+        });
+      }
+    }
+
+    // Processamento de Leitura
+    function onBarcodeScanned(decodedText) {
+      const nowTime = Date.now();
+      const currentRoom = document.getElementById('currentRoom').value.trim();
+
+      if (!currentRoom) {
+        playBeep('danger');
+        document.getElementById('scanResult').innerHTML = `<div class="result-box status-danger">⚠️ Selecione ou digite a Sala Atual antes de ler!</div>`;
+        return;
+      }
+
+      // Evita leitura duplicada contínua do mesmo código (Cooldown de 2.5s)
+      if (isProcessing || (decodedText === lastScannedCode && (nowTime - lastScanTime) < 2500)) {
+        return;
+      }
+
+      isProcessing = true;
+      lastScannedCode = decodedText;
+      lastScanTime = nowTime;
+
+      const normScanned = normalizeCode(decodedText);
+      const resultBox = document.getElementById('scanResult');
+      const now = new Date().toLocaleString('pt-BR');
+
+      const item = database.find(i => normalizeCode(i.patrimonio) === normScanned);
+
+      if (item) {
+        item.dataLeitura = now;
+        item.localEncontrado = currentRoom;
+
+        if (normalizeCode(item.centroGerencial) === normalizeCode(currentRoom) || item.centroGerencial === currentRoom) {
+          item.inventario = "Confirmado OK";
+          playBeep('ok');
+          resultBox.innerHTML = `
+            <div class="result-box status-ok">
+              <strong>🟢 CONFIRMADO!</strong> (${item.patrimonio})<br>
+              <b>Material:</b> ${item.material}
+            </div>`;
+        } else {
+          item.inventario = "Movido de " + item.centroGerencial;
+          playBeep('warning');
+          resultBox.innerHTML = `
+            <div class="result-box status-warning">
+              <strong>🟡 MOVIDO!</strong> (${item.patrimonio})<br>
+              <b>Material:</b> ${item.material}<br>
+              <b>De:</b> ${item.centroGerencial} ➔ <b>Para:</b> ${currentRoom}
+            </div>`;
+        }
+
+        updateCounters();
+        renderHistory(decodedText, item);
+
+        // Libera scanner para próxima leitura em 1.2s
+        setTimeout(() => { isProcessing = false; }, 1200);
+
+      } else {
+        // Trata item não cadastrado
+        playBeep('danger');
+        
+        setTimeout(() => {
+          const descUser = prompt(`🔴 Código ${decodedText} NÃO cadastrado!\n\nDigite a descrição do item:`, "Item sem cadastro prévio");
+          const descFinal = (descUser && descUser.trim() !== '') ? descUser.trim() : "Item Novo / Não Cadastrado";
+
+          const newItem = {
+            patrimonio: decodedText, unidade: "FZEA", centroGerencial: "Não Constava na Base",
+            material: descFinal, marca: "", modelo: "", tipo: "", noSerie: "", valor: "", resp: "",
+            situacao: "Ativo", condicao: "Regularizado", inventario: "Item Novo Adicionado",
+            retirado: "", localEncontrado: currentRoom, dataLeitura: now
+          };
+
+          database.push(newItem);
+
+          resultBox.innerHTML = `
+            <div class="result-box status-danger">
+              <strong>🔴 NOVO ITEM REGISTRADO!</strong><br>
+              <b>Código:</b> ${decodedText} | <b>Descrição:</b> ${descFinal}
+            </div>`;
+
+          updateCounters();
+          renderHistory(decodedText, null);
+          
+          isProcessing = false;
+        }, 100);
+      }
+    }
+
+    function updateCounters() {
+      document.getElementById('totalCount').innerText = database.length;
+      const audited = database.filter(i => i.inventario !== 'Pendente' && i.inventario !== '').length;
+      document.getElementById('auditedCount').innerText = audited;
+    }
+
+    function renderHistory(code, item) {
+      const historyList = document.getElementById('historyList');
+      const div = document.createElement('div');
+      div.className = 'history-item';
+      
+      const title = item ? item.material : "Novo Item Registrado";
+      const status = item ? item.inventario : "Item Novo";
+      
+      div.innerHTML = `<span><b>${code}</b> - ${title}</span> <span>${status}</span>`;
+      historyList.insertBefore(div, historyList.firstChild);
+    }
+
+    // Exportação em formato CSV
+    function exportCSV() {
+      if (database.length === 0) {
+        alert("Não existem dados para exportar.");
+        return;
+      }
+
+      let headers = rawHeaders.length > 0 ? [...rawHeaders] : [
+        "No. Patrimônio","Unidade","Centro Gerencial","Material","Marca","Modelo",
+        "Tipo","No.Série","Valor","Resp.","Situação","Condição","Inventário","Retirado"
+      ];
+
+      if (!headers.includes("Local_Encontrado")) headers.push("Local_Encontrado");
+      if (!headers.includes("Data_Leitura")) headers.push("Data_Leitura");
+
+      let csvContent = "\uFEFF" + headers.map(h => `"${h}"`).join(";") + "\n";
+
+      database.forEach(row => {
+        const line = [
+          row.patrimonio, row.unidade, row.centroGerencial, row.material, row.marca,
+          row.modelo, row.tipo, row.noSerie, row.valor, row.resp, row.situacao,
+          row.condicao, row.inventario, row.retirado, row.localEncontrado, row.dataLeitura
+        ];
+        csvContent += line.map(v => `"${v || ''}"`).join(";") + "\n";
+      });
+
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement("a");
+      const url = URL.createObjectURL(blob);
+      link.setAttribute("href", url);
+      link.setAttribute("download", `Patrimonio_Auditado_${new Date().toISOString().slice(0,10)}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+  </script>
+</body>
+</html>
