@@ -132,8 +132,20 @@
 
     // Normalização mantendo caracteres alfanuméricos e zeros à esquerda
     function normalizeCode(code) {
-      if (!code) return '';
-      return code.toString().trim().replace(/[^a-zA-Z0-9]/g, '');
+    if (code === null || code === undefined) return '';
+    
+    let str = code.toString().trim();
+    
+    // 1. Remove decimais de exportação do Excel (ex: "12345.0" vira "12345")
+    str = str.replace(/\.0+$/, '');
+    
+    // 2. Remove todos os pontos, traços, barras e espaços
+    str = str.replace(/[^a-zA-Z0-9]/g, '');
+    
+    // 3. Remove os zeros à esquerda para comparar apenas o número base (ex: "000123" vira "123")
+    str = str.replace(/^0+/, '');
+    
+    return str.toUpperCase();
     }
 
     // Sinais Sonoros de Feedback
