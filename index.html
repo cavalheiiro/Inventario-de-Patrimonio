@@ -47,6 +47,19 @@
       background: #6c757d;
       margin-top: 5px;
     }
+    .btn-next {
+      background: #28a745;
+      font-size: 18px;
+      padding: 15px;
+      margin-top: 12px;
+      display: none;
+      animation: pulse 1.5s infinite;
+    }
+    @keyframes pulse {
+      0% { transform: scale(1); }
+      50% { transform: scale(1.02); }
+      100% { transform: scale(1); }
+    }
     #interactive { 
       width: 100%; 
       max-width: 500px; 
@@ -100,7 +113,7 @@
   <!-- Passo 1: Arquivo e Localização -->
   <div class="card">
     <h3>📋 1. Base de Patrimônio e Sala Atual</h3>
-    <div class="badge-info">⚡ 1.007 locais FZEA pré-carregados na memória.</div>
+    <div class="badge-info">⚡ Locais FZEA pré-carregados na memória.</div>
     
     <label style="margin-top: 15px; display: block;"><strong>Importar Planilha de Patrimônio (CSV):</strong></label>
     <input type="file" id="csvFileInput" accept=".csv">
@@ -114,11 +127,15 @@
 
   <!-- Passo 2: Digitalização -->
   <div class="card">
-    <h3>📷 2. Leitura de Código de Barras / QR Code</h3>
+    <h3>📷 2. Leitura de Código de Barras</h3>
     <button id="btnStartScan" onclick="toggleScanner()">📷 Ligar Câmera / Escanear</button>
     <button id="btnTorch" class="btn-secondary" onclick="toggleTorch()" style="display: none;">🔦 Ligar Flash</button>
     
     <div id="interactive"></div>
+    
+    <!-- Botão de Próximo Scan -->
+    <button id="btnNextScan" class="btn-next" onclick="triggerNextScan()">▶️ Escanear Próximo</button>
+    
     <div id="scanResult"></div>
   </div>
 
@@ -143,13 +160,9 @@
     let html5QrcodeScanner = null;
     let isScanning = false;
     let isTorchOn = false;
+    let isPaused = false;
 
-    // Trava de leitura contínua
-    let isProcessing = false;
-    let lastScannedCode = null;
-    let lastScanTime = 0;
-
-    // CANAL GLOBAL DE ÁUDIO (Compatível com telemóveis)
+    // CANAL GLOBAL DE ÁUDIO
     let audioCtx = null;
 
     function initAudio() {
@@ -172,7 +185,6 @@
       return str.toUpperCase();
     }
 
-    // Indexa as salas pré-carregadas na inicialização
     window.addEventListener('DOMContentLoaded', () => {
       mepLocaisNorm = {};
       for (let key in LOCAIS_PRECARREGADOS) {
@@ -186,7 +198,7 @@
       return mepLocaisNorm[norm] || codigoSala;
     }
 
-    // --- SINAIS SONOROS (Ajustados para telemóveis) ---
+    // --- SINAIS SONOROS ---
     function playScanBeep() {
       try {
         initAudio();
@@ -268,9 +280,8 @@
       const roomSet = new Set();
 
       let patrimonioColIdx = 0;
-      let enderecoColIdx = 2; // Padrão (3ª coluna) caso não localize por nome
+      let enderecoColIdx = 2;
 
-      // Identifica dinamicamente as colunas pelos cabeçalhos
       rawHeaders.forEach((h, idx) => {
         const headerNorm = h.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
         if (headerNorm.includes("patrimonio") || headerNorm.includes("tombo") || headerNorm.includes("codigo")) {
@@ -288,7 +299,7 @@
           const item = {
             patrimonio: cols[patrimonioColIdx] || cols[0] || '',
             unidade: cols[1] || '', 
-            centroGerencial: enderecoRaw, // Mapeia a coluna de Endereço/Sala
+            centroGerencial: enderecoRaw,
             material: cols[3] || '', 
             marca: cols[4] || '', 
             modelo: cols[5] || '',
@@ -308,7 +319,6 @@
         }
       }
 
-      // Preenche o Select das salas traduzindo automaticamente os códigos
       const select = document.getElementById('roomSelect');
       select.innerHTML = '<option value="">-- Selecione a sala atual --</option>';
       
@@ -320,7 +330,7 @@
       });
 
       updateCounters();
-      document.getElementById('scanResult').innerHTML = `<div class="result-box status-ok">✅ Planilha carregada: ${database.length} itens. Salas traduzidas!</div>`;
+      document.getElementById('scanResult').innerHTML = `<div class="result-box status-ok">✅ Planilha carregada: ${database.length} itens.</div>`;
     }
 
     function syncRoomInput(val) {
@@ -329,13 +339,15 @@
 
     // --- CONTROLE DA CÂMERA E FLASH ---
     function toggleScanner() {
-      initAudio(); // <--- Desbloqueia o áudio com o clique do utilizador
+      initAudio();
       const btn = document.getElementById('btnStartScan');
       if (isScanning) {
         stopScanner();
         btn.innerText = "📷 Ligar Câmera / Escanear";
         document.getElementById('btnTorch').style.display = 'none';
+        document.getElementById('btnNextScan').style.display = 'none';
         isScanning = false;
+        isPaused = false;
       } else {
         startScanner();
         btn.innerText = "🛑 Parar Câmera";
@@ -345,7 +357,6 @@
 
     function startScanner() {
       const formatsToSupport = [
-        Html5QrcodeSupportedFormats.QR_CODE,
         Html5QrcodeSupportedFormats.CODE_128,
         Html5QrcodeSupportedFormats.CODE_39,
         Html5QrcodeSupportedFormats.EAN_13,
@@ -357,7 +368,7 @@
 
       const config = {
         fps: 25,
-        qrbox: { width: 280, height: 280 },
+        qrbox: { width: 320, height: 100 },
         videoConstraints: {
           facingMode: "environment",
           width: { min: 1280, ideal: 1920 },
@@ -372,6 +383,8 @@
         onBarcodeScanned
       ).then(() => {
         document.getElementById('btnTorch').style.display = 'block';
+        document.getElementById('btnNextScan').style.display = 'none';
+        isPaused = false;
       }).catch(err => {
         document.getElementById('scanResult').innerHTML = `<div class="result-box status-danger">Erro de Câmera: ${err}</div>`;
       });
@@ -383,7 +396,8 @@
           document.getElementById('interactive').innerHTML = '';
           isTorchOn = false;
           document.getElementById('btnTorch').innerText = "🔦 Ligar Flash";
-        });
+          document.getElementById('btnNextScan').style.display = 'none';
+        }).catch(() => {});
       }
     }
 
@@ -405,22 +419,21 @@
 
     // --- LEITURA E PROCESSAMENTO ---
     function onBarcodeScanned(decodedText) {
-      const nowTime = Date.now();
+      if (isPaused) return;
+
       const currentRoomInput = document.getElementById('currentRoom').value.trim();
 
       if (!currentRoomInput) {
         playStatusBeep('danger');
-        document.getElementById('scanResult').innerHTML = `<div class="result-box status-danger">⚠️️ Selecione a Sala Atual antes de escanear!</div>`;
+        document.getElementById('scanResult').innerHTML = `<div class="result-box status-danger">⚠️ Selecione a Sala Atual antes de escanear!</div>`;
         return;
       }
 
-      if (isProcessing || (decodedText === lastScannedCode && (nowTime - lastScanTime) < 2500)) {
-        return;
-      }
-
-      isProcessing = true;
-      lastScannedCode = decodedText;
-      lastScanTime = nowTime;
+      // PAUSA IMEDIATA DA CÂMERA
+      isPaused = true;
+      try {
+        html5QrcodeScanner.pause(true); // Pausa a análise e congela o vídeo
+      } catch (e) {}
 
       playScanBeep(); // 1º BIPE
 
@@ -429,77 +442,85 @@
       const now = new Date().toLocaleString('pt-BR');
 
       const item = database.find(i => normalizeCode(i.patrimonio) === normScanned);
+      const currentRoomNome = obterNomeSala(currentRoomInput);
 
-      setTimeout(() => {
-        const currentRoomNome = obterNomeSala(currentRoomInput);
+      if (item) {
+        item.dataLeitura = now;
+        item.localEncontrado = currentRoomInput;
 
-        if (item) {
-          item.dataLeitura = now;
-          item.localEncontrado = currentRoomInput;
+        const origRoomNorm = normalizeCode(item.centroGerencial);
+        const currRoomNorm = normalizeCode(currentRoomInput);
 
-          const origRoomNorm = normalizeCode(item.centroGerencial);
-          const currRoomNorm = normalizeCode(currentRoomInput);
+        if (origRoomNorm === currRoomNorm) {
+          item.inventario = "Confirmado OK";
+          playStatusBeep('ok'); // 2º BIPE OK
+          resultBox.innerHTML = `
+            <div class="result-box status-ok">
+              <strong>🟢 CONFIRMADO!</strong> (${item.patrimonio})<br>
+              <b>Material:</b> ${item.material}<br>
+              <b>Sala:</b> ${currentRoomNome}
+            </div>`;
+        } else {
+          const origRoomNome = obterNomeSala(item.centroGerencial);
+          item.inventario = "Movido de " + item.centroGerencial;
+          playStatusBeep('warning'); // 2º BIPE MOVIDO
+          resultBox.innerHTML = `
+            <div class="result-box status-warning">
+              <strong>🟡 MOVIDO!</strong> (${item.patrimonio})<br>
+              <b>Material:</b> ${item.material}<br>
+              <b>Origem:</b> ${origRoomNome}<br>
+              ➔ <b>Encontrado em:</b> ${currentRoomNome}
+            </div>`;
+        }
 
-          if (origRoomNorm === currRoomNorm) {
-            item.inventario = "Confirmado OK";
-            playStatusBeep('ok'); // 2º BIPE OK
-            resultBox.innerHTML = `
-              <div class="result-box status-ok">
-                <strong>🟢 CONFIRMADO!</strong> (${item.patrimonio})<br>
-                <b>Material:</b> ${item.material}<br>
-                <b>Sala:</b> ${currentRoomNome}
-              </div>`;
-          } else {
-            const origRoomNome = obterNomeSala(item.centroGerencial);
-            item.inventario = "Movido de " + item.centroGerencial;
-            playStatusBeep('warning'); // 2º BIPE MOVIDO
-            resultBox.innerHTML = `
-              <div class="result-box status-warning">
-                <strong>🟡 MOVIDO!</strong> (${item.patrimonio})<br>
-                <b>Material:</b> ${item.material}<br>
-                <b>Origem:</b> ${origRoomNome}<br>
-                ➔ <b>Encontrado em:</b> ${currentRoomNome}
-              </div>`;
-          }
+        updateCounters();
+        renderHistory(decodedText, item);
+        document.getElementById('btnNextScan').style.display = 'block';
+
+      } else {
+        playStatusBeep('danger'); // 2º BIPE ERRO
+        
+        setTimeout(() => {
+          const descUser = prompt(`🔴 Código ${decodedText} NÃO cadastrado!\n\nDigite a descrição do item:`, "Item sem cadastro prévio");
+          const descFinal = (descUser && descUser.trim() !== '') ? descUser.trim() : "Item Novo / Não Cadastrado";
+
+          const newItem = {
+            patrimonio: decodedText, 
+            unidade: "FZEA", 
+            centroGerencial: "Não Constava na Base",
+            material: descFinal, 
+            marca: "", modelo: "", tipo: "", noSerie: "", valor: "", resp: "",
+            situacao: "Ativo", condicao: "Regularizado", 
+            inventario: "Item Novo Adicionado",
+            retirado: "", 
+            localEncontrado: currentRoomInput, 
+            dataLeitura: now
+          };
+
+          database.push(newItem);
+
+          resultBox.innerHTML = `
+            <div class="result-box status-danger">
+              <strong>🔴 NOVO ITEM REGISTRADO!</strong><br>
+              <b>Código:</b> ${decodedText} | <b>Descrição:</b> ${descFinal}
+            </div>`;
 
           updateCounters();
-          renderHistory(decodedText, item);
-          setTimeout(() => { isProcessing = false; }, 1200);
+          renderHistory(decodedText, null);
+          document.getElementById('btnNextScan').style.display = 'block';
+        }, 100);
+      }
+    }
 
-        } else {
-          playStatusBeep('danger'); // 2º BIPE ERRO
-          
-          setTimeout(() => {
-            const descUser = prompt(`🔴 Código ${decodedText} NÃO cadastrado!\n\nDigite a descrição do item:`, "Item sem cadastro prévio");
-            const descFinal = (descUser && descUser.trim() !== '') ? descUser.trim() : "Item Novo / Não Cadastrado";
-
-            const newItem = {
-              patrimonio: decodedText, 
-              unidade: "FZEA", 
-              centroGerencial: "Não Constava na Base",
-              material: descFinal, 
-              marca: "", modelo: "", tipo: "", noSerie: "", valor: "", resp: "",
-              situacao: "Ativo", condicao: "Regularizado", 
-              inventario: "Item Novo Adicionado",
-              retirado: "", 
-              localEncontrado: currentRoomInput, 
-              dataLeitura: now
-            };
-
-            database.push(newItem);
-
-            resultBox.innerHTML = `
-              <div class="result-box status-danger">
-                <strong>🔴 NOVO ITEM REGISTRADO!</strong><br>
-                <b>Código:</b> ${decodedText} | <b>Descrição:</b> ${descFinal}
-              </div>`;
-
-            updateCounters();
-            renderHistory(decodedText, null);
-            isProcessing = false;
-          }, 100);
-        }
-      }, 150);
+    // RETOMAR A LEITURA
+    function triggerNextScan() {
+      document.getElementById('btnNextScan').style.display = 'none';
+      if (html5QrcodeScanner && isScanning) {
+        try {
+          html5QrcodeScanner.resume();
+        } catch (e) {}
+        isPaused = false;
+      }
     }
 
     function updateCounters() {
