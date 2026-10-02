@@ -103,6 +103,15 @@
       display: inline-block;
       margin-top: 5px;
     }
+    .manual-box {
+      margin-top: 15px; 
+      border-top: 1px dashed #ccc; 
+      padding-top: 15px;
+    }
+    .manual-input-group {
+      display: flex; 
+      gap: 8px;
+    }
   </style>
   <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 </head>
@@ -125,16 +134,25 @@
     <input type="text" id="currentRoom" placeholder="Código ou Nome da Sala Atual">
   </div>
 
-  <!-- Passo 2: Digitalização -->
+  <!-- Passo 2: Digitalização e Digitação Manual -->
   <div class="card">
-    <h3>📷 2. Leitura de Código de Barras</h3>
+    <h3>📷 2. Leitura / Digitação de Patrimônio</h3>
     <button id="btnStartScan" onclick="toggleScanner()">📷 Ligar Câmera / Escanear</button>
     <button id="btnTorch" class="btn-secondary" onclick="toggleTorch()" style="display: none;">🔦 Ligar Flash</button>
     
+    <!-- Opção de Digitação Manual -->
+    <div class="manual-box">
+      <label><strong>Ou digite o código do patrimônio:</strong></label>
+      <div class="manual-input-group">
+        <input type="text" id="manualCodeInput" placeholder="Ex: 123456" onkeypress="if(event.key==='Enter') processManualInput()">
+        <button onclick="processManualInput()" style="width: 100px; margin-top: 8px; background: #17a2b8;">OK</button>
+      </div>
+    </div>
+
     <div id="interactive"></div>
     
     <!-- Botão de Próximo Scan -->
-    <button id="btnNextScan" class="btn-next" onclick="triggerNextScan()">▶️ Escanear Próximo</button>
+    <button id="btnNextScan" class="btn-next" onclick="triggerNextScan()">▶️ Continuar / Próxima Leitura</button>
     
     <div id="scanResult"></div>
   </div>
@@ -346,6 +364,21 @@
       if (val) document.getElementById('currentRoom').value = val;
     }
 
+    // --- PROCESSAMENTO DIGITAÇÃO MANUAL ---
+    function processManualInput() {
+      const input = document.getElementById('manualCodeInput');
+      const code = input.value.trim();
+      
+      if (!code) {
+        alert("Digite um número de patrimônio antes de confirmar.");
+        return;
+      }
+
+      isPaused = false;
+      onBarcodeScanned(code);
+      input.value = ''; // Limpa o campo após processar
+    }
+
     // --- CONTROLE DA CÂMERA E FLASH ---
     function toggleScanner() {
       initAudio();
@@ -426,7 +459,7 @@
       }
     }
 
-    // --- LEITURA E PROCESSAMENTO ---
+    // --- LEITURA E PROCESSAMENTO DE PATRIMÔNIO ---
     function onBarcodeScanned(decodedText) {
       if (isPaused) return;
 
@@ -434,15 +467,17 @@
 
       if (!currentRoomInput) {
         playStatusBeep('danger');
-        document.getElementById('scanResult').innerHTML = `<div class="result-box status-danger">⚠️ Selecione a Sala Atual antes de escanear!</div>`;
+        document.getElementById('scanResult').innerHTML = `<div class="result-box status-danger">⚠️ Selecione a Sala Atual antes de prosseguir!</div>`;
         return;
       }
 
-      // PAUSA IMEDIATA DA CÂMERA
+      // PAUSA CÂMERA SE ESTIVER ATIVA
       isPaused = true;
-      try {
-        html5QrcodeScanner.pause(true);
-      } catch (e) {}
+      if (isScanning && html5QrcodeScanner) {
+        try {
+          html5QrcodeScanner.pause(true);
+        } catch (e) {}
+      }
 
       playScanBeep(); // 1º BIPE
 
@@ -463,8 +498,8 @@
 
         if (origRoomNorm === currRoomNorm) {
           item.inventario = "Confirmado OK";
-          item.situacao = "OK"; // ATUALIZA SITUAÇÃO NO CSV
-          playStatusBeep('ok'); // 2º BIPE OK
+          item.situacao = "OK";
+          playStatusBeep('ok');
           resultBox.innerHTML = `
             <div class="result-box status-ok">
               <strong>🟢 CONFIRMADO!</strong> (${item.patrimonio})<br>
@@ -475,8 +510,8 @@
         } else {
           const origRoomNome = obterNomeSala(item.centroGerencial);
           item.inventario = "Movido de " + item.centroGerencial;
-          item.situacao = "OK (Movido)"; // ATUALIZA SITUAÇÃO NO CSV
-          playStatusBeep('warning'); // 2º BIPE MOVIDO
+          item.situacao = "OK (Movido)";
+          playStatusBeep('warning');
           resultBox.innerHTML = `
             <div class="result-box status-warning">
               <strong>🟡 MOVIDO!</strong> (${item.patrimonio})<br>
@@ -492,7 +527,7 @@
         document.getElementById('btnNextScan').style.display = 'block';
 
       } else {
-        playStatusBeep('danger'); // 2º BIPE ERRO
+        playStatusBeep('danger');
         
         setTimeout(() => {
           const descUser = prompt(`🔴 Código ${decodedText} NÃO cadastrado!\n\nDigite a descrição do item:`, "Item sem cadastro prévio");
@@ -529,11 +564,11 @@
     // RETOMAR A LEITURA
     function triggerNextScan() {
       document.getElementById('btnNextScan').style.display = 'none';
-      if (html5QrcodeScanner && isScanning) {
+      isPaused = false;
+      if (isScanning && html5QrcodeScanner) {
         try {
           html5QrcodeScanner.resume();
         } catch (e) {}
-        isPaused = false;
       }
     }
 
