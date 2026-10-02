@@ -254,21 +254,27 @@
       const roomSet = new Set();
 
       let patrimonioColIdx = 0;
+      let enderecoColIdx = 2; // Padrão (3ª coluna) caso não localize por nome
+
+      // Identifica dinamicamente as colunas pelos cabeçalhos
       rawHeaders.forEach((h, idx) => {
         const headerNorm = h.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
         if (headerNorm.includes("patrimonio") || headerNorm.includes("tombo") || headerNorm.includes("codigo")) {
           patrimonioColIdx = idx;
+        }
+        if (headerNorm.includes("endereco") || headerNorm.includes("local") || headerNorm.includes("sala")) {
+          enderecoColIdx = idx;
         }
       });
 
       for (let i = 1; i < lines.length; i++) {
         const cols = splitRow(lines[i]);
         if (cols.length > 0) {
-          const centroGerencialRaw = cols[2] || '';
+          const enderecoRaw = cols[enderecoColIdx] || '';
           const item = {
             patrimonio: cols[patrimonioColIdx] || cols[0] || '',
             unidade: cols[1] || '', 
-            centroGerencial: centroGerencialRaw,
+            centroGerencial: enderecoRaw, // Mapeia a coluna de Endereço/Sala
             material: cols[3] || '', 
             marca: cols[4] || '', 
             modelo: cols[5] || '',
@@ -284,7 +290,7 @@
             dataLeitura: cols[15] || ''
           };
           database.push(item);
-          if (centroGerencialRaw) roomSet.add(centroGerencialRaw);
+          if (enderecoRaw) roomSet.add(enderecoRaw);
         }
       }
 
@@ -334,7 +340,7 @@
       html5QrcodeScanner = new Html5Qrcode("interactive", { formatsToSupport: formatsToSupport, verbose: false });
 
       const config = {
-        fps: 15,
+        fps: 25,
         qrbox: { width: 320, height: 100 },
         videoConstraints: {
           facingMode: "environment",
@@ -505,7 +511,7 @@
       }
 
       let headers = rawHeaders.length > 0 ? [...rawHeaders] : [
-        "No. Patrimônio","Unidade","Centro Gerencial","Material","Marca","Modelo",
+        "No. Patrimônio","Unidade","Endereço/Local","Material","Marca","Modelo",
         "Tipo","No.Série","Valor","Resp.","Situação","Condição","Inventário","Retirado"
       ];
 
