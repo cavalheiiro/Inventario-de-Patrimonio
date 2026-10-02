@@ -281,7 +281,10 @@
 
       let patrimonioColIdx = 0;
       let enderecoColIdx = 2;
+      let respColIdx = 9;
+      let situacaoColIdx = 10;
 
+      // Mapeamento dinâmico de colunas
       rawHeaders.forEach((h, idx) => {
         const headerNorm = h.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
         if (headerNorm.includes("patrimonio") || headerNorm.includes("tombo") || headerNorm.includes("codigo")) {
@@ -289,6 +292,12 @@
         }
         if (headerNorm.includes("endereco") || headerNorm.includes("local") || headerNorm.includes("sala")) {
           enderecoColIdx = idx;
+        }
+        if (headerNorm.includes("resp") || headerNorm.includes("pessoa") || headerNorm.includes("nome") || headerNorm.includes("usuario") || headerNorm.includes("detentor")) {
+          respColIdx = idx;
+        }
+        if (headerNorm.includes("situacao") || headerNorm.includes("status")) {
+          situacaoColIdx = idx;
         }
       });
 
@@ -306,8 +315,8 @@
             tipo: cols[6] || '', 
             noSerie: cols[7] || '', 
             valor: cols[8] || '',
-            resp: cols[9] || '', 
-            situacao: cols[10] || '', 
+            resp: cols[respColIdx] || '', 
+            situacao: cols[situacaoColIdx] || '', 
             condicao: cols[11] || '',
             inventario: cols[12] || 'Pendente', 
             retirado: cols[13] || '',
@@ -432,7 +441,7 @@
       // PAUSA IMEDIATA DA CÂMERA
       isPaused = true;
       try {
-        html5QrcodeScanner.pause(true); // Pausa a análise e congela o vídeo
+        html5QrcodeScanner.pause(true);
       } catch (e) {}
 
       playScanBeep(); // 1º BIPE
@@ -450,24 +459,29 @@
 
         const origRoomNorm = normalizeCode(item.centroGerencial);
         const currRoomNorm = normalizeCode(currentRoomInput);
+        const respText = item.resp ? `<b>Responsável:</b> ${item.resp}<br>` : '';
 
         if (origRoomNorm === currRoomNorm) {
           item.inventario = "Confirmado OK";
+          item.situacao = "OK"; // ATUALIZA SITUAÇÃO NO CSV
           playStatusBeep('ok'); // 2º BIPE OK
           resultBox.innerHTML = `
             <div class="result-box status-ok">
               <strong>🟢 CONFIRMADO!</strong> (${item.patrimonio})<br>
               <b>Material:</b> ${item.material}<br>
+              ${respText}
               <b>Sala:</b> ${currentRoomNome}
             </div>`;
         } else {
           const origRoomNome = obterNomeSala(item.centroGerencial);
           item.inventario = "Movido de " + item.centroGerencial;
+          item.situacao = "OK (Movido)"; // ATUALIZA SITUAÇÃO NO CSV
           playStatusBeep('warning'); // 2º BIPE MOVIDO
           resultBox.innerHTML = `
             <div class="result-box status-warning">
               <strong>🟡 MOVIDO!</strong> (${item.patrimonio})<br>
               <b>Material:</b> ${item.material}<br>
+              ${respText}
               <b>Origem:</b> ${origRoomNome}<br>
               ➔ <b>Encontrado em:</b> ${currentRoomNome}
             </div>`;
@@ -489,8 +503,8 @@
             unidade: "FZEA", 
             centroGerencial: "Não Constava na Base",
             material: descFinal, 
-            marca: "", modelo: "", tipo: "", noSerie: "", valor: "", resp: "",
-            situacao: "Ativo", condicao: "Regularizado", 
+            marca: "", modelo: "", tipo: "", noSerie: "", valor: "", resp: "Não Informado",
+            situacao: "OK (Item Novo)", condicao: "Regularizado", 
             inventario: "Item Novo Adicionado",
             retirado: "", 
             localEncontrado: currentRoomInput, 
