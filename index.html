@@ -43,7 +43,7 @@
     button:active { 
       background: #004bb3; 
     }
-    .btn-torch {
+    .btn-secondary {
       background: #6c757d;
       margin-top: 5px;
     }
@@ -81,14 +81,14 @@
       border-bottom: 1px solid #eee; 
       font-size: 14px; 
     }
-    .debug-info {
-      font-size: 12px;
-      color: #666;
-      margin-top: 5px;
-      background: #f0f0f0;
-      padding: 6px;
+    .badge-info {
+      font-size: 13px;
+      padding: 6px 10px;
       border-radius: 4px;
-      word-break: break-all;
+      background: #d1ecf1;
+      color: #0c5460;
+      display: inline-block;
+      margin-top: 5px;
     }
   </style>
   <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
@@ -99,23 +99,24 @@
 
   <!-- Passo 1: Arquivo e Localização -->
   <div class="card">
-    <h3>1. Arquivo e Localização</h3>
+    <h3>📋 1. Base de Patrimônio e Sala Atual</h3>
+    <div class="badge-info">⚡ 1.007 locais FZEA pré-carregados na memória.</div>
     
-    <label><strong>Importar Ficheiro CSV (ex.: Patrimonio RNR OUT26.csv):</strong></label>
+    <label style="margin-top: 15px; display: block;"><strong>Importar Planilha de Patrimônio (CSV):</strong></label>
     <input type="file" id="csvFileInput" accept=".csv">
     
-    <label style="margin-top: 15px; display: block;"><strong>Selecione ou Digite o Local/Sala Atual:</strong></label>
+    <label style="margin-top: 15px; display: block;"><strong>Selecione a Sala Atual:</strong></label>
     <select id="roomSelect" onchange="syncRoomInput(this.value)">
-      <option value="">-- Carregue o CSV para listar as salas --</option>
+      <option value="">-- Carregue o CSV de Patrimônio primeiro --</option>
     </select>
-    <input type="text" id="currentRoom" placeholder="Ex: Sala 101 ou Bloco A">
+    <input type="text" id="currentRoom" placeholder="Código ou Nome da Sala Atual">
   </div>
 
   <!-- Passo 2: Digitalização -->
   <div class="card">
-    <h3>2. Leitura de Código de Barras</h3>
+    <h3>📷 2. Leitura de Código de Barras</h3>
     <button id="btnStartScan" onclick="toggleScanner()">📷 Ligar Câmera / Escanear</button>
-    <button id="btnTorch" class="btn-torch" onclick="toggleTorch()" style="display: none;">🔦 Ligar Flash</button>
+    <button id="btnTorch" class="btn-secondary" onclick="toggleTorch()" style="display: none;">🔦 Ligar Flash</button>
     
     <div id="interactive"></div>
     <div id="scanResult"></div>
@@ -123,7 +124,7 @@
 
   <!-- Passo 3: Estado e Exportação -->
   <div class="card">
-    <h3>3. Estado do Inventário</h3>
+    <h3>📊 3. Estado do Inventário</h3>
     <p>Total na Base: <strong id="totalCount">0</strong> | Auditados: <strong id="auditedCount">0</strong></p>
     
     <button onclick="exportCSV()" style="background: #28a745;">📥 Baixar CSV Atualizado</button>
@@ -133,8 +134,12 @@
   </div>
 
   <script>
+    // --- DICIONÁRIO DE SALAS FZEA PRÉ-CARREGADO ---
+    const LOCAIS_PRECARREGADOS = {"12385": "12385 - FCHE06 04/DIRETORIA/DIRETOR (TÉRREO)", "12387": "12387 - FCHE06 44/DIRET/ASS.DIREÇÃO (TÉRREO)", "12389": "12389 - FCHE06 11/ATADM/ASSIST. (TÉRREO)", "12390": "12390 - FCHE06 10/DIRET/CONGREGAÇÃO (TÉRREO)", "12392": "12392 - FCHE06 03/DIRETORIA/SECRET. (TÉRREO)", "12393": "12393 - FCHE06 42/ATFIN/ASSISTENTE (TÉRREO)", "12394": "12394 - FCHE06 38/CONTAB/TESOURARIA (TÉRREO)", "12400": "12400 - FCHE06 36/ATFIN/ALMOX (TÉRREO)", "12404": "12404 - PDHE24 21/ATADM/VEÍCULOS (TERREO)", "12405": "12405 - FCHE06 39/ATADM/SÇ EXPEDIEN (TÉRREO)", "12406": "12406 - FCHE06 02/ATACAD/ASSIST. (TÉRREO)", "12408": "12408 - FCHE06 13/BIBLIO/BIBLIOTECA (TÉRREO)", "12415": "12415 - PDHE24 19/ATADM/SÇ MANUT. (TERREO)", "12416": "12416 - PDHE24 16/ATADM/OF.MANUTEN (TERREO)", "12423": "12423 - FCHE06 20/SÇ TI/SUPORTE TI (TÉRREO)", "12424": "12424 - FCHE06 22/SÇ TI/SALA REDES (TÉRREO)", "12427": "12427 - FCHE06 29/GRAD/COORDENAÇÃO (TÉRREO)", "12431": "12431 - FCHE06 05/POSGRAD/SECRET. (TÉRREO)", "12432": "12432 - FCHE06 34/PESQ/SECRETARIA (TÉRREO)", "12433": "12433 - FCHE06 35/CULTEXT/SECRET. (TÉRREO)", "12435": "12435 - FCHE06 30/GRAD/SALA ATEND. (TÉRREO)", "12439": "12439 - FCHE06 08/RECDOC/ARQUIVO (TÉRREO)", "12440": "12440 - FCHE06 12/ATADM/SÇ COMPRAS (TÉRREO)", "12441": "12441 - FCHE06 43/ATFIN/SÇ FINANÇAS (TÉRREO)", "12443": "12443 - FCHE06 41/ATADM/SÇ PESSOAL (TÉRREO)", "12445": "12445 - FCHE06 24/BIBLIO/MUSEU (TÉRREO)", "12448": "12448 - FCHE06 18/BIBLIO/CIRCULAÇÃO (TÉRREO)", "12453": "12453 - FCHE06 16/BIBLIO/ACERVO (TÉRREO)", "12454": "12454 - FCHE06 26/SALA ESTUDO GRUPO (TÉRREO)", "12457": "12457 - FCHE06 15/BIBLIO/MULTIMÍDIA (TÉRREO)", "12461": "12461 - FCHE06 23/BIBLIO/RESTAURO (TÉRREO)", "12463": "12463 - FCHE06 07/RECDOC/PROTOCOLO (TÉRREO)", "12465": "12465 - PDHE24 23/RESTAURANTE/COZIN (TERREO)", "12466": "12466 - PDHE24 24/RESTAUR/REFEITÓR (TERREO)", "12467": "12467 - PDHE24 25/REST/SALA ATEND. (TERREO)", "12468": "12468 - PDHE24 02/SÇ MED/ENFERMARIA (TERREO)", "12469": "12469 - PDHE24 03/SÇ MED/ODONTOL. (TERREO)", "12470": "12470 - PDHE24 01/SÇ MED/RECEPÇÃO (TERREO)", "12471": "12471 - PDHE24 13/UBAS/SALA REUNIÃO (TERREO)", "12472": "12472 - PDHE24 14/UBAS/SERVIÇO SOC. (TERREO)", "12473": "12473 - PDHE24 15/UBAS/PSICOLOGIA (TERREO)", "12474": "12474 - ZTL01 02/LAB/BOMBEAMENTO (TERREO)", "12475": "12475 - ZTL01 01/CENTRAL/GLP (TERREO)", "12478": "12478 - FCHE06 14/BIBLIO/PROCESSAM. (TÉRREO)", "12479": "12479 - FCHE06 17/BIBLIO/CHEFIA (TÉRREO)", "12480": "12480 - FCHE06 06/RECDOC/ARQUIVO (TÉRREO)", "12481": "12481 - FCHE06 37/ATFIN/ALMOX/DEP (TÉRREO)", "12482": "12482 - FCHE06 21/SÇ TI/DEP.TI (TÉRREO)", "12483": "12483 - FCHE06 09/RECDOC/DEPÓSITO (TÉRREO)", "12484": "12484 - PDHE24 17/ATADM/DEP.MANUT. (TERREO)", "12485": "12485 - PDHE24 18/ATADM/DEP.MANUT. (TERREO)", "12486": "12486 - PDHE24 20/ATADM/SALA FERRAM (TERREO)", "12487": "12487 - PDHE24 22/ATADM/VESTIÁRIO (TERREO)", "12488": "12488 - PDHE24 26/REST/ESTOQUE ALIM (TERREO)", "12489": "12489 - PDHE24 27/REST/CAMARA FRIG (TERREO)", "12490": "12490 - PDHE24 28/REST/CAMARA FRIG (TERREO)", "12491": "12491 - PDHE24 29/REST/DEP.LIMPEZA (TERREO)", "12492": "12492 - PDHE24 30/REST/VESTIÁRIO (TERREO)", "12493": "12493 - PDHE24 04/UBAS/SALA ATEND. (TERREO)", "12494": "12494 - PDHE24 05/UBAS/EXPEDIENTE (TERREO)", "12495": "12495 - PDHE24 06/UBAS/EXPEDIENTE (TERREO)", "12496": "12496 - PDHE24 07/UBAS/SALA ATEND. (TERREO)", "12497": "12497 - PDHE24 08/UBAS/COPINHA (TERREO)", "12498": "12498 - PDHE24 09/UBAS/SALA REUNIÃO (TERREO)", "12499": "12499 - PDHE24 10/UBAS/RECEPÇÃO (TERREO)", "12500": "12500 - PDHE24 11/UBAS/SALA VACINA (TERREO)", "12501": "12501 - PDHE24 12/UBAS/DEPÓSITO (TERREO)", "12503": "12503 - FCHE06 28/SALA ESTUDO INDIV (TÉRREO)", "12504": "12504 - FCHE06 27/SALA ESTUDO INDIV (TÉRREO)", "12505": "12505 - FCHE06 25/SALA ESTUDO GRUPO (TÉRREO)", "12506": "12506 - FCHE06 31/SALA REUNIÃO (TÉRREO)", "12507": "12507 - FCHE06 32/SALA REUNIÃO (TÉRREO)", "12508": "12508 - FCHE06 33/SALA ATENDIMENTO (TÉRREO)", "12509": "12509 - FCHE06 40/ATADM/CHEFIA (TÉRREO)", "12510": "12510 - FCHE06 01/ATACAD/CHEFIA (TÉRREO)", "12511": "12511 - FCHE06 19/SÇ TI/CHEFIA TI (TÉRREO)", "12512": "12512 - ZTL01 03/SUBESTAÇÃO 01 (TERREO)", "12513": "12513 - ZTL01 04/SUBESTAÇÃO 02 (TERREO)", "12514": "12514 - ZTL01 05/SUBESTAÇÃO 03 (TERREO)", "12515": "12515 - ZTL01 06/PORTARIA 01 (TERREO)", "12516": "12516 - ZTL01 07/PORTARIA 02 (TERREO)", "12517": "12517 - ZTL01 08/CENTRAL/SEGURANÇ (TERREO)", "12518": "12518 - ZTL01 09/SALA RESÍDUOS (TERREO)", "12519": "12519 - ZTL01 10/ESTAÇÃO/TRAT.AGUA (TERREO)", "12520": "12520 - ZTL01 11/ESTAÇÃO/TRAT.ESG. (TERREO)"};
+
     let rawHeaders = [];
     let database = [];
+    let mepLocaisNorm = {};
     let html5QrcodeScanner = null;
     let isScanning = false;
     let isTorchOn = false;
@@ -144,22 +149,32 @@
     let lastScannedCode = null;
     let lastScanTime = 0;
 
-    // Normalizador ultra-flexível de códigos
+    // Normalizador de códigos
     function normalizeCode(code) {
       if (code === null || code === undefined) return '';
       let str = code.toString().trim();
-      // Remove BOM caracteres e espaços ocultos
       str = str.replace(/^\uFEFF/, '').replace(/[\x00-\x1F\x7F-\x9F]/g, '');
-      // Remove decimal do Excel (.0)
       str = str.replace(/\.0+$/, '');
-      // Mantém apenas letras e números
       str = str.replace(/[^a-zA-Z0-9]/g, '');
-      // Remove zeros à esquerda
       str = str.replace(/^0+/, '');
       return str.toUpperCase();
     }
 
-    // 1º BIPE: Som curto instantâneo de leitura do código
+    // Indexa as salas pré-carregadas na inicialização
+    window.addEventListener('DOMContentLoaded', () => {
+      mepLocaisNorm = {};
+      for (let key in LOCAIS_PRECARREGADOS) {
+        mepLocaisNorm[normalizeCode(key)] = LOCAIS_PRECARREGADOS[key];
+      }
+    });
+
+    function obterNomeSala(codigoSala) {
+      if (!codigoSala) return '';
+      const norm = normalizeCode(codigoSala);
+      return mepLocaisNorm[norm] || codigoSala;
+    }
+
+    // --- SINAIS SONOROS (2 Bipes) ---
     function playScanBeep() {
       try {
         const ctx = new (window.AudioContext || window.webkitAudioContext)();
@@ -167,14 +182,13 @@
         const gain = ctx.createGain();
         osc.connect(gain);
         gain.connect(ctx.destination);
-        osc.frequency.value = 1200; // Tom alto rápido
+        osc.frequency.value = 1200;
         gain.gain.value = 0.15;
         osc.start();
         osc.stop(ctx.currentTime + 0.08);
       } catch(e){}
     }
 
-    // 2º BIPE: Som de Situação (OK, Movido ou Erro)
     function playStatusBeep(type) {
       try {
         const ctx = new (window.AudioContext || window.webkitAudioContext)();
@@ -182,7 +196,6 @@
         gain.connect(ctx.destination);
 
         if (type === 'ok') {
-          // Tom duplo alegre (Confirmado OK)
           const osc1 = ctx.createOscillator();
           const osc2 = ctx.createOscillator();
           osc1.connect(gain); osc2.connect(gain);
@@ -191,14 +204,12 @@
           osc1.start(ctx.currentTime); osc1.stop(ctx.currentTime + 0.1);
           osc2.start(ctx.currentTime + 0.1); osc2.stop(ctx.currentTime + 0.25);
         } else if (type === 'warning') {
-          // Tom médio estendido (Movido)
           const osc = ctx.createOscillator();
           osc.connect(gain);
           osc.frequency.value = 500;
           gain.gain.value = 0.2;
           osc.start(); osc.stop(ctx.currentTime + 0.3);
         } else if (type === 'danger') {
-          // Tom grave prolongado (Não Cadastrado)
           const osc = ctx.createOscillator();
           osc.connect(gain);
           osc.frequency.value = 220;
@@ -208,20 +219,19 @@
       } catch(e){}
     }
 
-    // Processamento do CSV
+    // --- PROCESSAMENTO DO CSV DE PATRIMÔNIO ---
     document.getElementById('csvFileInput').addEventListener('change', function(e) {
       const file = e.target.files[0];
       if (!file) return;
 
       const reader = new FileReader();
       reader.onload = function(evt) {
-        parseCSVContent(evt.target.result);
+        parseCSVPatrimonio(evt.target.result);
       };
       reader.readAsText(file, 'UTF-8');
     });
 
-    function parseCSVContent(text) {
-      // Remove o caractere de marca de ordem de byte (BOM) se existir
+    function parseCSVPatrimonio(text) {
       text = text.replace(/^\uFEFF/, '');
       const lines = text.split(/\r?\n/).filter(line => line.trim() !== '');
       if (lines.length === 0) return;
@@ -243,7 +253,6 @@
       database = [];
       const roomSet = new Set();
 
-      // Identifica dinamicamente o índice da coluna do Patrimônio
       let patrimonioColIdx = 0;
       rawHeaders.forEach((h, idx) => {
         const headerNorm = h.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
@@ -255,10 +264,11 @@
       for (let i = 1; i < lines.length; i++) {
         const cols = splitRow(lines[i]);
         if (cols.length > 0) {
+          const centroGerencialRaw = cols[2] || '';
           const item = {
             patrimonio: cols[patrimonioColIdx] || cols[0] || '',
             unidade: cols[1] || '', 
-            centroGerencial: cols[2] || '',
+            centroGerencial: centroGerencialRaw,
             material: cols[3] || '', 
             marca: cols[4] || '', 
             modelo: cols[5] || '',
@@ -271,31 +281,33 @@
             inventario: cols[12] || 'Pendente', 
             retirado: cols[13] || '',
             localEncontrado: cols[14] || '', 
-            dataLeitura: cols[15] || '',
-            rawCols: cols
+            dataLeitura: cols[15] || ''
           };
           database.push(item);
-          if (item.centroGerencial) roomSet.add(item.centroGerencial);
+          if (centroGerencialRaw) roomSet.add(centroGerencialRaw);
         }
       }
 
+      // Preenche o Select das salas traduzindo automaticamente os códigos
       const select = document.getElementById('roomSelect');
-      select.innerHTML = '<option value="">-- Selecione uma sala da lista --</option>';
-      roomSet.forEach(room => {
+      select.innerHTML = '<option value="">-- Selecione a sala atual --</option>';
+      
+      Array.from(roomSet).sort().forEach(roomCode => {
         const opt = document.createElement('option');
-        opt.value = room; opt.innerText = room;
+        opt.value = roomCode;
+        opt.innerText = obterNomeSala(roomCode);
         select.appendChild(opt);
       });
 
       updateCounters();
-      document.getElementById('scanResult').innerHTML = `<div class="result-box status-ok">✅ CSV Carregado com Sucesso! ${database.length} itens na base.</div>`;
+      document.getElementById('scanResult').innerHTML = `<div class="result-box status-ok">✅ Planilha carregada: ${database.length} itens. Salas traduzidas!</div>`;
     }
 
     function syncRoomInput(val) {
       if (val) document.getElementById('currentRoom').value = val;
     }
 
-    // Controle da Câmera e Flash
+    // --- CONTROLE DA CÂMERA E FLASH ---
     function toggleScanner() {
       const btn = document.getElementById('btnStartScan');
       if (isScanning) {
@@ -337,7 +349,6 @@
         config,
         onBarcodeScanned
       ).then(() => {
-        // Exibe o botão de flash após a câmera abrir
         document.getElementById('btnTorch').style.display = 'block';
       }).catch(err => {
         document.getElementById('scanResult').innerHTML = `<div class="result-box status-danger">Erro de Câmera: ${err}</div>`;
@@ -354,7 +365,6 @@
       }
     }
 
-    // Função de alternar o Flash/Lanterna
     async function toggleTorch() {
       if (!html5QrcodeScanner || !isScanning) return;
       try {
@@ -364,25 +374,24 @@
           await track.applyConstraints({ advanced: [{ torch: isTorchOn }] });
           document.getElementById('btnTorch').innerText = isTorchOn ? "💡 Desligar Flash" : "🔦 Ligar Flash";
         } else {
-          alert("O flash/lanterna não é suportado pelo seu navegador ou aparelho.");
+          alert("O flash não é suportado por este navegador.");
         }
       } catch (e) {
-        alert("Erro ao acionar o flash: " + e.message);
+        alert("Erro no flash: " + e.message);
       }
     }
 
-    // Leitura do Código de Barras
+    // --- LEITURA E PROCESSAMENTO ---
     function onBarcodeScanned(decodedText) {
       const nowTime = Date.now();
-      const currentRoom = document.getElementById('currentRoom').value.trim();
+      const currentRoomInput = document.getElementById('currentRoom').value.trim();
 
-      if (!currentRoom) {
+      if (!currentRoomInput) {
         playStatusBeep('danger');
-        document.getElementById('scanResult').innerHTML = `<div class="result-box status-danger">⚠️ Selecione ou digite a Sala Atual antes de ler!</div>`;
+        document.getElementById('scanResult').innerHTML = `<div class="result-box status-danger">⚠️ Selecione a Sala Atual antes de escanear!</div>`;
         return;
       }
 
-      // Evita leituras duplicadas continuas do mesmo código num intervalo de 2.5s
       if (isProcessing || (decodedText === lastScannedCode && (nowTime - lastScanTime) < 2500)) {
         return;
       }
@@ -391,53 +400,55 @@
       lastScannedCode = decodedText;
       lastScanTime = nowTime;
 
-      // 1º BIPE: Dispara imediatamente no momento da leitura física
-      playScanBeep();
+      playScanBeep(); // 1º BIPE
 
       const normScanned = normalizeCode(decodedText);
       const resultBox = document.getElementById('scanResult');
       const now = new Date().toLocaleString('pt-BR');
 
-      // Procura o item comparando códigos normalizados
       const item = database.find(i => normalizeCode(i.patrimonio) === normScanned);
 
-      // Pequena pausa (150ms) entre o 1º Bipe de captura e o 2º Bipe de status
       setTimeout(() => {
+        const currentRoomNome = obterNomeSala(currentRoomInput);
+
         if (item) {
           item.dataLeitura = now;
-          item.localEncontrado = currentRoom;
+          item.localEncontrado = currentRoomInput;
 
-          if (normalizeCode(item.centroGerencial) === normalizeCode(currentRoom) || item.centroGerencial === currentRoom) {
+          const origRoomNorm = normalizeCode(item.centroGerencial);
+          const currRoomNorm = normalizeCode(currentRoomInput);
+
+          if (origRoomNorm === currRoomNorm) {
             item.inventario = "Confirmado OK";
-            playStatusBeep('ok'); // 2º Bipe: OK
+            playStatusBeep('ok'); // 2º BIPE OK
             resultBox.innerHTML = `
               <div class="result-box status-ok">
                 <strong>🟢 CONFIRMADO!</strong> (${item.patrimonio})<br>
-                <b>Material:</b> ${item.material}
-                <div class="debug-info">Lido: "${decodedText}" | Buscado: "${normScanned}"</div>
+                <b>Material:</b> ${item.material}<br>
+                <b>Sala:</b> ${currentRoomNome}
               </div>`;
           } else {
+            const origRoomNome = obterNomeSala(item.centroGerencial);
             item.inventario = "Movido de " + item.centroGerencial;
-            playStatusBeep('warning'); // 2º Bipe: Movido
+            playStatusBeep('warning'); // 2º BIPE MOVIDO
             resultBox.innerHTML = `
               <div class="result-box status-warning">
                 <strong>🟡 MOVIDO!</strong> (${item.patrimonio})<br>
                 <b>Material:</b> ${item.material}<br>
-                <b>De:</b> ${item.centroGerencial} ➔ <b>Para:</b> ${currentRoom}
-                <div class="debug-info">Lido: "${decodedText}" | Buscado: "${normScanned}"</div>
+                <b>Origem:</b> ${origRoomNome}<br>
+                ➔ <b>Encontrado em:</b> ${currentRoomNome}
               </div>`;
           }
 
           updateCounters();
           renderHistory(decodedText, item);
-
           setTimeout(() => { isProcessing = false; }, 1200);
 
         } else {
-          playStatusBeep('danger'); // 2º Bipe: Não cadastrado
+          playStatusBeep('danger'); // 2º BIPE ERRO
           
           setTimeout(() => {
-            const descUser = prompt(`🔴 Código ${decodedText} NÃO cadastrado na base!\n\n(Chave buscada: ${normScanned})\n\nDigite a descrição do item:`, "Item sem cadastro prévio");
+            const descUser = prompt(`🔴 Código ${decodedText} NÃO cadastrado!\n\nDigite a descrição do item:`, "Item sem cadastro prévio");
             const descFinal = (descUser && descUser.trim() !== '') ? descUser.trim() : "Item Novo / Não Cadastrado";
 
             const newItem = {
@@ -449,7 +460,7 @@
               situacao: "Ativo", condicao: "Regularizado", 
               inventario: "Item Novo Adicionado",
               retirado: "", 
-              localEncontrado: currentRoom, 
+              localEncontrado: currentRoomInput, 
               dataLeitura: now
             };
 
@@ -459,12 +470,10 @@
               <div class="result-box status-danger">
                 <strong>🔴 NOVO ITEM REGISTRADO!</strong><br>
                 <b>Código:</b> ${decodedText} | <b>Descrição:</b> ${descFinal}
-                <div class="debug-info">Lido: "${decodedText}" | Buscado: "${normScanned}"</div>
               </div>`;
 
             updateCounters();
             renderHistory(decodedText, null);
-            
             isProcessing = false;
           }, 100);
         }
