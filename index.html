@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Inventário de Patrimônio - FZEA</title>
+  <title>Inventário de Patrimônio & Dashboard - FZEA</title>
   <style>
     * { 
       box-sizing: border-box; 
@@ -15,9 +15,40 @@
       background: #f4f6f8; 
       color: #333; 
     }
-    h1, h3 { 
+    h1, h3, h4 { 
       margin-top: 0; 
     }
+    
+    /* Menu de Abas */
+    .nav-tabs {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 15px;
+    }
+    .nav-tab {
+      flex: 1;
+      padding: 12px;
+      background: #e9ecef;
+      border: none;
+      border-radius: 8px;
+      font-size: 16px;
+      font-weight: bold;
+      color: #495057;
+      cursor: pointer;
+      text-align: center;
+    }
+    .nav-tab.active {
+      background: #0066cc;
+      color: white;
+    }
+
+    .tab-content {
+      display: none;
+    }
+    .tab-content.active {
+      display: block;
+    }
+
     .card { 
       background: white; 
       border-radius: 10px; 
@@ -112,60 +143,179 @@
       display: flex; 
       gap: 8px;
     }
+
+    /* Grid do Dashboard */
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 10px;
+      margin-bottom: 15px;
+    }
+    .kpi-card {
+      background: #f8f9fa;
+      border-radius: 8px;
+      padding: 12px;
+      text-align: center;
+      border: 1px solid #e9ecef;
+    }
+    .kpi-card h4 {
+      margin: 0;
+      font-size: 12px;
+      color: #6c757d;
+      text-transform: uppercase;
+    }
+    .kpi-card .number {
+      font-size: 22px;
+      font-weight: bold;
+      color: #0066cc;
+      margin-top: 5px;
+    }
+    .chart-container {
+      position: relative;
+      margin-top: 15px;
+      margin-bottom: 25px;
+      width: 100%;
+    }
+    .dash-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 10px;
+      font-size: 14px;
+    }
+    .dash-table th, .dash-table td {
+      border: 1px solid #dee2e6;
+      padding: 8px;
+      text-align: left;
+    }
+    .dash-table th {
+      background-color: #f1f3f5;
+    }
   </style>
+
+  <!-- Bibliotecas externas -->
   <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
 
   <h1>🏢 Inventário de Patrimônio</h1>
 
-  <!-- Passo 1: Arquivo e Localização -->
-  <div class="card">
-    <h3>📋 1. Base de Patrimônio e Sala Atual</h3>
-    <div class="badge-info">⚡ Locais FZEA pré-carregados na memória.</div>
-    
-    <label style="margin-top: 15px; display: block;"><strong>Importar Planilha de Patrimônio (CSV):</strong></label>
-    <input type="file" id="csvFileInput" accept=".csv">
-    
-    <label style="margin-top: 15px; display: block;"><strong>Selecione a Sala Atual:</strong></label>
-    <select id="roomSelect" onchange="syncRoomInput(this.value)">
-      <option value="">-- Carregue o CSV de Patrimônio primeiro --</option>
-    </select>
-    <input type="text" id="currentRoom" placeholder="Código ou Nome da Sala Atual">
+  <!-- Menu de Navegação -->
+  <div class="nav-tabs">
+    <button class="nav-tab active" onclick="switchTab('auditTab', this)">📷 Auditoria</button>
+    <button class="nav-tab" onclick="switchTab('dashboardTab', this)">📊 Dashboard</button>
   </div>
 
-  <!-- Passo 2: Digitalização e Digitação Manual -->
-  <div class="card">
-    <h3>📷 2. Leitura / Digitação de Patrimônio</h3>
-    <button id="btnStartScan" onclick="toggleScanner()">📷 Ligar Câmera / Escanear</button>
-    <button id="btnTorch" class="btn-secondary" onclick="toggleTorch()" style="display: none;">🔦 Ligar Flash</button>
-    
-    <!-- Opção de Digitação Manual -->
-    <div class="manual-box">
-      <label><strong>Ou digite o código do patrimônio:</strong></label>
-      <div class="manual-input-group">
-        <input type="text" id="manualCodeInput" placeholder="Ex: 123456" onkeypress="if(event.key==='Enter') processManualInput()">
-        <button onclick="processManualInput()" style="width: 100px; margin-top: 8px; background: #17a2b8;">OK</button>
+  <!-- ABA 1: AUDITORIA -->
+  <div id="auditTab" class="tab-content active">
+    <!-- Passo 1: Arquivo e Localização -->
+    <div class="card">
+      <h3>📋 1. Base de Patrimônio e Sala Atual</h3>
+      <div class="badge-info">⚡ Locais FZEA pré-carregados na memória.</div>
+      
+      <label style="margin-top: 15px; display: block;"><strong>Importar Planilha de Patrimônio (CSV):</strong></label>
+      <input type="file" id="csvFileInput" accept=".csv">
+      
+      <label style="margin-top: 15px; display: block;"><strong>Selecione a Sala Atual:</strong></label>
+      <select id="roomSelect" onchange="syncRoomInput(this.value)">
+        <option value="">-- Carregue o CSV de Patrimônio primeiro --</option>
+      </select>
+      <input type="text" id="currentRoom" placeholder="Código ou Nome da Sala Atual">
+    </div>
+
+    <!-- Passo 2: Digitalização / Digitação -->
+    <div class="card">
+      <h3>📷 2. Leitura / Digitação de Patrimônio</h3>
+      <button id="btnStartScan" onclick="toggleScanner()">📷 Ligar Câmera / Escanear</button>
+      <button id="btnTorch" class="btn-secondary" onclick="toggleTorch()" style="display: none;">🔦 Ligar Flash</button>
+      
+      <div class="manual-box">
+        <label><strong>Ou digite o código do patrimônio:</strong></label>
+        <div class="manual-input-group">
+          <input type="text" id="manualCodeInput" placeholder="Ex: 123456" onkeypress="if(event.key==='Enter') processManualInput()">
+          <button onclick="processManualInput()" style="width: 100px; margin-top: 8px; background: #17a2b8;">OK</button>
+        </div>
+      </div>
+
+      <div id="interactive"></div>
+      
+      <button id="btnNextScan" class="btn-next" onclick="triggerNextScan()">▶️ Continuar / Próxima Leitura</button>
+      
+      <div id="scanResult"></div>
+    </div>
+
+    <!-- Passo 3: Estado e Exportação -->
+    <div class="card">
+      <h3>📊 3. Estado do Inventário</h3>
+      <p>Total na Base: <strong id="totalCount">0</strong> | Auditados: <strong id="auditedCount">0</strong></p>
+      
+      <button onclick="exportCSV()" style="background: #28a745;">📥 Baixar CSV Atualizado</button>
+      
+      <h4 style="margin-top: 20px;">Últimas Leituras:</h4>
+      <div id="historyList"></div>
+    </div>
+  </div>
+
+  <!-- ABA 2: DASHBOARD ANALYTICS -->
+  <div id="dashboardTab" class="tab-content">
+    <!-- Indicadores Chave (KPIs) -->
+    <div class="card">
+      <h3>📊 Indicadores Gerais</h3>
+      <div class="kpi-grid">
+        <div class="kpi-card">
+          <h4>Total de Itens</h4>
+          <div class="number" id="kpiTotal">0</div>
+        </div>
+        <div class="kpi-card">
+          <h4>Verificados</h4>
+          <div class="number" id="kpiAudited" style="color: #28a745;">0</div>
+        </div>
+        <div class="kpi-card">
+          <h4>Pendentes</h4>
+          <div class="number" id="kpiPending" style="color: #dc3545;">0</div>
+        </div>
+        <div class="kpi-card">
+          <h4>Movidos / Novos</h4>
+          <div class="number" id="kpiMoved" style="color: #ffc107;">0</div>
+        </div>
+        <div class="kpi-card">
+          <h4>Progresso</h4>
+          <div class="number" id="kpiProgress" style="color: #17a2b8;">0%</div>
+        </div>
       </div>
     </div>
 
-    <div id="interactive"></div>
-    
-    <!-- Botão de Próximo Scan -->
-    <button id="btnNextScan" class="btn-next" onclick="triggerNextScan()">▶️ Continuar / Próxima Leitura</button>
-    
-    <div id="scanResult"></div>
-  </div>
+    <!-- Gráficos por Sala e por Responsável -->
+    <div class="card">
+      <h3>🏫 Itens Verificados por Sala</h3>
+      <div class="chart-container">
+        <canvas id="roomsChart"></canvas>
+      </div>
+    </div>
 
-  <!-- Passo 3: Estado e Exportação -->
-  <div class="card">
-    <h3>📊 3. Estado do Inventário</h3>
-    <p>Total na Base: <strong id="totalCount">0</strong> | Auditados: <strong id="auditedCount">0</strong></p>
-    
-    <button onclick="exportCSV()" style="background: #28a745;">📥 Baixar CSV Atualizado</button>
-    
-    <h4 style="margin-top: 20px;">Últimas Leituras:</h4>
-    <div id="historyList"></div>
+    <div class="card">
+      <h3>👤 Itens Verificados por Responsável</h3>
+      <div class="chart-container">
+        <canvas id="respChart"></canvas>
+      </div>
+      
+      <h4 style="margin-top: 20px;">Resumo por Responsável</h4>
+      <div style="overflow-x: auto;">
+        <table class="dash-table" id="respTable">
+          <thead>
+            <tr>
+              <th>Responsável</th>
+              <th>Total na Posse</th>
+              <th>Auditados</th>
+              <th>% Auditado</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td colspan="4" style="text-align:center;">Carregue o CSV para visualizar os dados.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
   </div>
 
   <script>
@@ -179,9 +329,23 @@
     let isScanning = false;
     let isTorchOn = false;
     let isPaused = false;
-
-    // CANAL GLOBAL DE ÁUDIO
     let audioCtx = null;
+
+    // Instâncias dos gráficos
+    let roomsChartInstance = null;
+    let respChartInstance = null;
+
+    function switchTab(tabId, btnElement) {
+      document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+      document.querySelectorAll('.nav-tab').forEach(el => el.classList.remove('active'));
+      
+      document.getElementById(tabId).classList.add('active');
+      btnElement.classList.add('active');
+
+      if (tabId === 'dashboardTab') {
+        renderDashboard();
+      }
+    }
 
     function initAudio() {
       if (!audioCtx) {
@@ -192,7 +356,6 @@
       }
     }
 
-    // Normalizador de códigos
     function normalizeCode(code) {
       if (code === null || code === undefined) return '';
       let str = code.toString().trim();
@@ -263,7 +426,7 @@
       } catch(e){}
     }
 
-    // --- PROCESSAMENTO DO CSV DE PATRIMÔNIO ---
+    // --- PROCESSAMENTO DO CSV ---
     document.getElementById('csvFileInput').addEventListener('change', function(e) {
       const file = e.target.files[0];
       if (!file) return;
@@ -302,7 +465,6 @@
       let respColIdx = 9;
       let situacaoColIdx = 10;
 
-      // Mapeamento dinâmico de colunas
       rawHeaders.forEach((h, idx) => {
         const headerNorm = h.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
         if (headerNorm.includes("patrimonio") || headerNorm.includes("tombo") || headerNorm.includes("codigo")) {
@@ -333,7 +495,7 @@
             tipo: cols[6] || '', 
             noSerie: cols[7] || '', 
             valor: cols[8] || '',
-            resp: cols[respColIdx] || '', 
+            resp: cols[respColIdx] || 'Não Informado', 
             situacao: cols[situacaoColIdx] || '', 
             condicao: cols[11] || '',
             inventario: cols[12] || 'Pendente', 
@@ -364,7 +526,6 @@
       if (val) document.getElementById('currentRoom').value = val;
     }
 
-    // --- PROCESSAMENTO DIGITAÇÃO MANUAL ---
     function processManualInput() {
       const input = document.getElementById('manualCodeInput');
       const code = input.value.trim();
@@ -376,7 +537,7 @@
 
       isPaused = false;
       onBarcodeScanned(code);
-      input.value = ''; // Limpa o campo após processar
+      input.value = '';
     }
 
     // --- CONTROLE DA CÂMERA E FLASH ---
@@ -459,7 +620,7 @@
       }
     }
 
-    // --- LEITURA E PROCESSAMENTO DE PATRIMÔNIO ---
+    // --- LEITURA E PROCESSAMENTO ---
     function onBarcodeScanned(decodedText) {
       if (isPaused) return;
 
@@ -471,7 +632,6 @@
         return;
       }
 
-      // PAUSA CÂMERA SE ESTIVER ATIVA
       isPaused = true;
       if (isScanning && html5QrcodeScanner) {
         try {
@@ -479,7 +639,7 @@
         } catch (e) {}
       }
 
-      playScanBeep(); // 1º BIPE
+      playScanBeep();
 
       const normScanned = normalizeCode(decodedText);
       const resultBox = document.getElementById('scanResult');
@@ -561,7 +721,6 @@
       }
     }
 
-    // RETOMAR A LEITURA
     function triggerNextScan() {
       document.getElementById('btnNextScan').style.display = 'none';
       isPaused = false;
@@ -588,6 +747,135 @@
       
       div.innerHTML = `<span><b>${code}</b> - ${title}</span> <span>${status}</span>`;
       historyList.insertBefore(div, historyList.firstChild);
+    }
+
+    // --- DASHBOARD ANALYTICS LOGIC ---
+    function renderDashboard() {
+      const total = database.length;
+      const auditedItems = database.filter(i => i.inventario !== 'Pendente' && i.inventario !== '');
+      const auditedCount = auditedItems.length;
+      const pendingCount = total - auditedCount;
+      const movedCount = database.filter(i => i.situacao.includes('Movido') || i.situacao.includes('Novo')).length;
+      const progressPercent = total > 0 ? ((auditedCount / total) * 100).toFixed(1) : 0;
+
+      // KPIs
+      document.getElementById('kpiTotal').innerText = total;
+      document.getElementById('kpiAudited').innerText = auditedCount;
+      document.getElementById('kpiPending').innerText = pendingCount;
+      document.getElementById('kpiMoved').innerText = movedCount;
+      document.getElementById('kpiProgress').innerText = progressPercent + '%';
+
+      // Agrupamento por Sala
+      const roomsData = {};
+      database.forEach(item => {
+        const sala = item.localEncontrado || item.centroGerencial || "Não Definida";
+        const salaNome = obterNomeSala(sala);
+        if (!roomsData[salaNome]) {
+          roomsData[salaNome] = { total: 0, auditados: 0 };
+        }
+        roomsData[salaNome].total++;
+        if (item.inventario !== 'Pendente' && item.inventario !== '') {
+          roomsData[salaNome].auditados++;
+        }
+      });
+
+      const roomLabels = Object.keys(roomsData);
+      const roomAuditados = roomLabels.map(k => roomsData[k].auditados);
+      const roomTotais = roomLabels.map(k => roomsData[k].total);
+
+      // Agrupamento por Responsável
+      const respData = {};
+      database.forEach(item => {
+        const resp = item.resp || "Sem Responsável";
+        if (!respData[resp]) {
+          respData[resp] = { total: 0, auditados: 0 };
+        }
+        respData[resp].total++;
+        if (item.inventario !== 'Pendente' && item.inventario !== '') {
+          respData[resp].auditados++;
+        }
+      });
+
+      const respLabels = Object.keys(respData);
+      const respAuditados = respLabels.map(k => respData[k].auditados);
+      const respTotais = respLabels.map(k => respData[k].total);
+
+      // Renderizar Tabela Resumo por Responsável
+      const tbody = document.querySelector('#respTable tbody');
+      if (respLabels.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;">Carregue o CSV para visualizar os dados.</td></tr>';
+      } else {
+        tbody.innerHTML = '';
+        respLabels.forEach(r => {
+          const t = respData[r].total;
+          const a = respData[r].auditados;
+          const p = t > 0 ? ((a / t) * 100).toFixed(0) : 0;
+          tbody.innerHTML += `
+            <tr>
+              <td><b>${r}</b></td>
+              <td>${t}</td>
+              <td>${a}</td>
+              <td>${p}%</td>
+            </tr>`;
+        });
+      }
+
+      // Renderizar Gráfico de Salas (Chart.js)
+      const ctxRooms = document.getElementById('roomsChart').getContext('2d');
+      if (roomsChartInstance) roomsChartInstance.destroy();
+      
+      roomsChartInstance = new Chart(ctxRooms, {
+        type: 'bar',
+        data: {
+          labels: roomLabels.length > 0 ? roomLabels : ['Sem Dados'],
+          datasets: [
+            {
+              label: 'Auditados',
+              data: roomAuditados.length > 0 ? roomAuditados : [0],
+              backgroundColor: '#28a745'
+            },
+            {
+              label: 'Total Esperado',
+              data: roomTotais.length > 0 ? roomTotais : [0],
+              backgroundColor: '#e9ecef'
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: { y: { beginAtZero: true } }
+        }
+      });
+
+      // Renderizar Gráfico de Responsáveis (Chart.js)
+      const ctxResp = document.getElementById('respChart').getContext('2d');
+      if (respChartInstance) respChartInstance.destroy();
+
+      respChartInstance = new Chart(ctxResp, {
+        type: 'bar',
+        data: {
+          labels: respLabels.length > 0 ? respLabels : ['Sem Dados'],
+          datasets: [
+            {
+              label: 'Auditados',
+              data: respAuditados.length > 0 ? respAuditados : [0],
+              backgroundColor: '#0066cc'
+            },
+            {
+              label: 'Total na Posse',
+              data: respTotais.length > 0 ? respTotais : [0],
+              backgroundColor: '#ced4da'
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          indexAxis: 'y', // Barra Horizontal
+          scales: { x: { beginAtZero: true } }
+        }
+      });
     }
 
     function exportCSV() {
