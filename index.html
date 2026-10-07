@@ -331,7 +331,6 @@
     let isPaused = false;
     let audioCtx = null;
 
-    // Instâncias dos gráficos
     let roomsChartInstance = null;
     let respChartInstance = null;
 
@@ -463,7 +462,6 @@
       let patrimonioColIdx = 0;
       let enderecoColIdx = 2;
       let respColIdx = 9;
-      let situacaoColIdx = 10;
 
       rawHeaders.forEach((h, idx) => {
         const headerNorm = h.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
@@ -476,15 +474,16 @@
         if (headerNorm.includes("resp") || headerNorm.includes("pessoa") || headerNorm.includes("nome") || headerNorm.includes("usuario") || headerNorm.includes("detentor")) {
           respColIdx = idx;
         }
-        if (headerNorm.includes("situacao") || headerNorm.includes("status")) {
-          situacaoColIdx = idx;
-        }
       });
 
       for (let i = 1; i < lines.length; i++) {
         const cols = splitRow(lines[i]);
         if (cols.length > 0) {
           const enderecoRaw = cols[enderecoColIdx] || '';
+          
+          // Verifica se o arquivo sendo importado já possui uma leitura previa (ex: reimportando arquivo parcial)
+          const jaFoiLido = cols[15] && cols[15].trim() !== '';
+
           const item = {
             patrimonio: cols[patrimonioColIdx] || cols[0] || '',
             unidade: cols[1] || '', 
@@ -496,12 +495,13 @@
             noSerie: cols[7] || '', 
             valor: cols[8] || '',
             resp: cols[respColIdx] || 'Não Informado', 
-            situacao: cols[situacaoColIdx] || '', 
+            situacao: jaFoiLido ? (cols[10] || 'OK') : '', 
             condicao: cols[11] || '',
-            inventario: cols[12] || 'Pendente', 
+            inventario: jaFoiLido ? (cols[12] || 'Confirmado OK') : 'Pendente', 
             retirado: cols[13] || '',
             localEncontrado: cols[14] || '', 
-            dataLeitura: cols[15] || ''
+            dataLeitura: cols[15] || '',
+            auditado: jaFoiLido // Flag explicita de auditoria
           };
           database.push(item);
           if (enderecoRaw) roomSet.add(enderecoRaw);
@@ -519,7 +519,7 @@
       });
 
       updateCounters();
-      document.getElementById('scanResult').innerHTML = `<div class="result-box status-ok">✅ Planilha carregada: ${database.length} itens.</div>`;
+      document.getElementById('scanResult').innerHTML = `<div class="result-box status-ok">✅ Planilha carregada: ${database.length} itens. Todos marcados como Pendente para início da leitura.</div>`;
     }
 
     function syncRoomInput(val) {
@@ -649,6 +649,7 @@
       const currentRoomNome = obterNomeSala(currentRoomInput);
 
       if (item) {
+        item.auditado = true; // Sinaliza como auditado
         item.dataLeitura = now;
         item.localEncontrado = currentRoomInput;
 
@@ -703,7 +704,8 @@
             inventario: "Item Novo Adicionado",
             retirado: "", 
             localEncontrado: currentRoomInput, 
-            dataLeitura: now
+            dataLeitura: now,
+            auditado: true
           };
 
           database.push(newItem);
@@ -731,9 +733,13 @@
       }
     }
 
+    function isItemAuditado(item) {
+      return item.auditado === true || (item.dataLeitura && item.dataLeitura.trim() !== '');
+    }
+
     function updateCounters() {
       document.getElementById('totalCount').innerText = database.length;
-      const audited = database.filter(i => i.inventario !== 'Pendente' && i.inventario !== '').length;
+      const audited = database.filter(isItemAuditado).length;
       document.getElementById('auditedCount').innerText = audited;
     }
 
@@ -752,10 +758,10 @@
     // --- DASHBOARD ANALYTICS LOGIC ---
     function renderDashboard() {
       const total = database.length;
-      const auditedItems = database.filter(i => i.inventario !== 'Pendente' && i.inventario !== '');
+      const auditedItems = database.filter(isItemAuditado);
       const auditedCount = auditedItems.length;
       const pendingCount = total - auditedCount;
-      const movedCount = database.filter(i => i.situacao.includes('Movido') || i.situacao.includes('Novo')).length;
+      const movedCount = database.filter(i => isItemAuditado(i) && (i.situacao.includes('Movido') || i.situacao.includes('Novo'))).length;
       const progressPercent = total > 0 ? ((auditedCount / total) * 100).toFixed(1) : 0;
 
       // KPIs
@@ -774,7 +780,7 @@
           roomsData[salaNome] = { total: 0, auditados: 0 };
         }
         roomsData[salaNome].total++;
-        if (item.inventario !== 'Pendente' && item.inventario !== '') {
+        if (isItemAuditado(item)) {
           roomsData[salaNome].auditados++;
         }
       });
@@ -791,7 +797,7 @@
           respData[resp] = { total: 0, auditados: 0 };
         }
         respData[resp].total++;
-        if (item.inventario !== 'Pendente' && item.inventario !== '') {
+        if (isItemAuditado(item)) {
           respData[resp].auditados++;
         }
       });
@@ -872,7 +878,7 @@
         options: {
           responsive: true,
           maintainAspectRatio: false,
-          indexAxis: 'y', // Barra Horizontal
+          indexAxis: 'y',
           scales: { x: { beginAtZero: true } }
         }
       });
