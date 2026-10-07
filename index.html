@@ -247,7 +247,7 @@
     <!-- Passo 3: Estado e Exportação -->
     <div class="card">
       <h3>📊 3. Estado do Inventário</h3>
-      <p>Total na Base: <strong id="totalCount">0</strong> | Auditados: <strong id="auditedCount">0</strong></p>
+      <p>Total na Base: <strong id="totalCount">0</strong> | Auditados: <strong id="auditedCount">0</strong> (<span id="auditedPercent">0%</span>)</p>
       
       <button onclick="exportCSV()" style="background: #28a745;">📥 Baixar CSV Atualizado</button>
       
@@ -462,6 +462,7 @@
       let patrimonioColIdx = 0;
       let enderecoColIdx = 2;
       let respColIdx = 9;
+      let verificadoColIdx = -1;
 
       rawHeaders.forEach((h, idx) => {
         const headerNorm = h.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
@@ -474,6 +475,9 @@
         if (headerNorm.includes("resp") || headerNorm.includes("pessoa") || headerNorm.includes("nome") || headerNorm.includes("usuario") || headerNorm.includes("detentor")) {
           respColIdx = idx;
         }
+        if (headerNorm.includes("codigo_verificado") || headerNorm.includes("verificado")) {
+          verificadoColIdx = idx;
+        }
       });
 
       for (let i = 1; i < lines.length; i++) {
@@ -481,8 +485,14 @@
         if (cols.length > 0) {
           const enderecoRaw = cols[enderecoColIdx] || '';
           
-          // Verifica se o arquivo sendo importado já possui uma leitura previa (ex: reimportando arquivo parcial)
-          const jaFoiLido = cols[15] && cols[15].trim() !== '';
+          // Verifica se é uma reimportação de um CSV que já possuía a coluna "Codigo_Verificado" como SIM
+          let statusVerificado = "NÃO";
+          if (verificadoColIdx !== -1 && cols[verificadoColIdx]) {
+            const valNorm = cols[verificadoColIdx].trim().toUpperCase();
+            if (valNorm === "SIM" || valNorm === "S" || valNorm === "TRUE") {
+              statusVerificado = "SIM";
+            }
+          }
 
           const item = {
             patrimonio: cols[patrimonioColIdx] || cols[0] || '',
@@ -495,14 +505,15 @@
             noSerie: cols[7] || '', 
             valor: cols[8] || '',
             resp: cols[respColIdx] || 'Não Informado', 
-            situacao: jaFoiLido ? (cols[10] || 'OK') : '', 
+            situacao: statusVerificado === "SIM" ? (cols[10] || 'OK') : 'Pendente', 
             condicao: cols[11] || '',
-            inventario: jaFoiLido ? (cols[12] || 'Confirmado OK') : 'Pendente', 
+            inventario: statusVerificado === "SIM" ? (cols[12] || 'Confirmado OK') : 'Pendente', 
             retirado: cols[13] || '',
             localEncontrado: cols[14] || '', 
             dataLeitura: cols[15] || '',
-            auditado: jaFoiLido // Flag explicita de auditoria
+            codigoVerificado: statusVerificado // "SIM" ou "NÃO"
           };
+
           database.push(item);
           if (enderecoRaw) roomSet.add(enderecoRaw);
         }
@@ -519,7 +530,7 @@
       });
 
       updateCounters();
-      document.getElementById('scanResult').innerHTML = `<div class="result-box status-ok">✅ Planilha carregada: ${database.length} itens. Todos marcados como Pendente para início da leitura.</div>`;
+      document.getElementById('scanResult').innerHTML = `<div class="result-box status-ok">✅ Planilha carregada: ${database.length} itens. Todos iniciados com Codigo_Verificado = "NÃO" (0%).</div>`;
     }
 
     function syncRoomInput(val) {
@@ -649,7 +660,8 @@
       const currentRoomNome = obterNomeSala(currentRoomInput);
 
       if (item) {
-        item.auditado = true; // Sinaliza como auditado
+        // Atualiza a nova coluna no momento da leitura
+        item.codigoVerificado = "SIM";
         item.dataLeitura = now;
         item.localEncontrado = currentRoomInput;
 
@@ -705,7 +717,7 @@
             retirado: "", 
             localEncontrado: currentRoomInput, 
             dataLeitura: now,
-            auditado: true
+            codigoVerificado: "SIM"
           };
 
           database.push(newItem);
@@ -733,14 +745,19 @@
       }
     }
 
-    function isItemAuditado(item) {
-      return item.auditado === true || (item.dataLeitura && item.dataLeitura.trim() !== '');
+    // Função utilitária centralizada de verificação
+    function isVerificado(item) {
+      return item.codigoVerificado === "SIM";
     }
 
     function updateCounters() {
-      document.getElementById('totalCount').innerText = database.length;
-      const audited = database.filter(isItemAuditado).length;
+      const total = database.length;
+      const audited = database.filter(isVerificado).length;
+      const percent = total > 0 ? ((audited / total) * 100).toFixed(1) : 0;
+
+      document.getElementById('totalCount').innerText = total;
       document.getElementById('auditedCount').innerText = audited;
+      document.getElementById('auditedPercent').innerText = percent + '%';
     }
 
     function renderHistory(code, item) {
@@ -758,10 +775,10 @@
     // --- DASHBOARD ANALYTICS LOGIC ---
     function renderDashboard() {
       const total = database.length;
-      const auditedItems = database.filter(isItemAuditado);
+      const auditedItems = database.filter(isVerificado);
       const auditedCount = auditedItems.length;
       const pendingCount = total - auditedCount;
-      const movedCount = database.filter(i => isItemAuditado(i) && (i.situacao.includes('Movido') || i.situacao.includes('Novo'))).length;
+      const movedCount = database.filter(i => isVerificado(i) && (i.situacao.includes('Movido') || i.situacao.includes('Novo'))).length;
       const progressPercent = total > 0 ? ((auditedCount / total) * 100).toFixed(1) : 0;
 
       // KPIs
@@ -780,7 +797,7 @@
           roomsData[salaNome] = { total: 0, auditados: 0 };
         }
         roomsData[salaNome].total++;
-        if (isItemAuditado(item)) {
+        if (isVerificado(item)) {
           roomsData[salaNome].auditados++;
         }
       });
@@ -797,7 +814,7 @@
           respData[resp] = { total: 0, auditados: 0 };
         }
         respData[resp].total++;
-        if (isItemAuditado(item)) {
+        if (isVerificado(item)) {
           respData[resp].auditados++;
         }
       });
@@ -897,6 +914,7 @@
 
       if (!headers.includes("Local_Encontrado")) headers.push("Local_Encontrado");
       if (!headers.includes("Data_Leitura")) headers.push("Data_Leitura");
+      if (!headers.includes("Codigo_Verificado")) headers.push("Codigo_Verificado");
 
       let csvContent = "\uFEFF" + headers.map(h => `"${h}"`).join(";") + "\n";
 
@@ -904,7 +922,8 @@
         const line = [
           row.patrimonio, row.unidade, row.centroGerencial, row.material, row.marca,
           row.modelo, row.tipo, row.noSerie, row.valor, row.resp, row.situacao,
-          row.condicao, row.inventario, row.retirado, row.localEncontrado, row.dataLeitura
+          row.condicao, row.inventario, row.retirado, row.localEncontrado, row.dataLeitura,
+          row.codigoVerificado
         ];
         csvContent += line.map(v => `"${v || ''}"`).join(";") + "\n";
       });
