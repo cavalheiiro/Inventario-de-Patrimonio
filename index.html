@@ -210,7 +210,7 @@
   <div id="auditTab" class="tab-content active">
     <div class="card">
       <h3>📋 1. Base de Patrimônio e Sala Atual</h3>
-      <div class="badge-info">⚡ Suporta importação e retomada de planilhas parciais.</div>
+      <div class="badge-info">⚡ Exibição simplificada de número da sala ativada.</div>
       
       <label style="margin-top: 15px; display: block;"><strong>Importar Planilha de Patrimônio (CSV):</strong></label>
       <input type="file" id="csvFileInput" accept=".csv, .tsv, .txt">
@@ -219,7 +219,7 @@
       <select id="roomSelect" onchange="syncRoomInput(this.value)">
         <option value="">-- Carregue o CSV de Patrimônio primeiro --</option>
       </select>
-      <input type="text" id="currentRoom" placeholder="Código ou Nome da Sala Atual">
+      <input type="text" id="currentRoom" placeholder="Número ou Código da Sala Atual">
     </div>
 
     <div class="card">
@@ -360,6 +360,16 @@
       return str.toUpperCase();
     }
 
+    // EXTRAÇÃO COMPACTA DO NÚMERO DA SALA
+    function extrairNumeroSala(str) {
+      if (!str) return '';
+      const matchParen = str.match(/\((\d+)\)/);
+      if (matchParen) return matchParen[1];
+      const matchStart = str.match(/^(\d+)/);
+      if (matchStart) return matchStart[1];
+      return str.trim();
+    }
+
     window.addEventListener('DOMContentLoaded', () => {
       mepLocaisNorm = {};
       for (let key in LOCAIS_PRECARREGADOS) {
@@ -370,7 +380,8 @@
     function obterNomeSala(codigoSala) {
       if (!codigoSala) return '';
       const norm = normalizeCode(codigoSala);
-      return mepLocaisNorm[norm] || codigoSala;
+      const salaRaw = mepLocaisNorm[norm] || codigoSala;
+      return extrairNumeroSala(salaRaw);
     }
 
     function playScanBeep() {
@@ -435,7 +446,6 @@
       const lines = text.split(/\r?\n/).filter(line => line.trim() !== '');
       if (lines.length === 0) return;
 
-      // DETECÇÃO INTELIGENTE DE DELIMITADOR (\t, ; ou ,)
       const firstLine = lines[0];
       const countTab = (firstLine.match(/\t/g) || []).length;
       const countSemi = (firstLine.match(/;/g) || []).length;
@@ -488,7 +498,6 @@
           let dataAlteracao = (cols[16] || '').trim().toUpperCase();
           let condicao = (cols[10] || '').trim();
 
-          // Avaliação Rígida de Status
           let isAuditado = false;
           if (codVerificado === "SIM") {
             isAuditado = true;
@@ -528,10 +537,10 @@
       const select = document.getElementById('roomSelect');
       select.innerHTML = '<option value="">-- Selecione a sala atual --</option>';
       
-      Array.from(roomSet).sort().forEach(roomCode => {
+      Array.from(roomSet).sort((a,b) => extrairNumeroSala(a).localeCompare(extrairNumeroSala(b), undefined, {numeric: true})).forEach(roomCode => {
         const opt = document.createElement('option');
         opt.value = roomCode;
-        opt.innerText = obterNomeSala(roomCode);
+        opt.innerText = `Sala ${obterNomeSala(roomCode)}`;
         select.appendChild(opt);
       });
 
@@ -551,7 +560,7 @@
     }
 
     function syncRoomInput(val) {
-      if (val) document.getElementById('currentRoom').value = val;
+      if (val) document.getElementById('currentRoom').value = extrairNumeroSala(val);
     }
 
     function processManualInput() {
@@ -672,15 +681,15 @@
       const now = new Date().toLocaleString('pt-BR');
 
       const item = database.find(i => normalizeCode(i.patrimonio) === normScanned);
-      const currentRoomNome = obterNomeSala(currentRoomInput);
+      const currentRoomNome = extrairNumeroSala(currentRoomInput);
 
       if (item) {
         item.codigoVerificado = "SIM";
         item.dataLeitura = now;
         item.localEncontrado = currentRoomInput;
 
-        const origRoomNorm = normalizeCode(item.centroGerencial);
-        const currRoomNorm = normalizeCode(currentRoomInput);
+        const origRoomNorm = extrairNumeroSala(item.centroGerencial);
+        const currRoomNorm = extrairNumeroSala(currentRoomInput);
         const respText = item.resp ? `<b>Responsável:</b> ${item.resp}<br>` : '';
 
         if (origRoomNorm === currRoomNorm) {
@@ -695,7 +704,7 @@
               <b>Sala:</b> ${currentRoomNome}
             </div>`;
         } else {
-          const origRoomNome = obterNomeSala(item.centroGerencial);
+          const origRoomNome = extrairNumeroSala(item.centroGerencial);
           item.inventario = "Movido de " + item.centroGerencial;
           item.situacao = "OK (Movido)";
           playStatusBeep('warning');
@@ -704,8 +713,8 @@
               <strong>🟡 MOVIDO!</strong> (${item.patrimonio})<br>
               <b>Material:</b> ${item.material}<br>
               ${respText}
-              <b>Origem:</b> ${origRoomNome}<br>
-              ➔ <b>Encontrado em:</b> ${currentRoomNome}
+              <b>Origem:</b> Sala ${origRoomNome}<br>
+              ➔ <b>Encontrado em:</b> Sala ${currentRoomNome}
             </div>`;
         }
 
@@ -796,7 +805,7 @@
       const roomsData = {};
       database.forEach(item => {
         const sala = (isVerificado(item) && item.localEncontrado) ? item.localEncontrado : (item.centroGerencial || "Não Definida");
-        const salaNome = obterNomeSala(sala);
+        const salaNome = "Sala " + obterNomeSala(sala);
         if (!roomsData[salaNome]) {
           roomsData[salaNome] = { total: 0, auditados: 0 };
         }
