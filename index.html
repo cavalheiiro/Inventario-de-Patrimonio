@@ -208,13 +208,12 @@
 
   <!-- ABA 1: AUDITORIA -->
   <div id="auditTab" class="tab-content active">
-    <!-- Passo 1: Arquivo e Localização -->
     <div class="card">
       <h3>📋 1. Base de Patrimônio e Sala Atual</h3>
-      <div class="badge-info">⚡ Locais FZEA pré-carregados na memória.</div>
+      <div class="badge-info">⚡ Suporta importação e retomada de planilhas parciais.</div>
       
       <label style="margin-top: 15px; display: block;"><strong>Importar Planilha de Patrimônio (CSV):</strong></label>
-      <input type="file" id="csvFileInput" accept=".csv">
+      <input type="file" id="csvFileInput" accept=".csv, .tsv, .txt">
       
       <label style="margin-top: 15px; display: block;"><strong>Selecione a Sala Atual:</strong></label>
       <select id="roomSelect" onchange="syncRoomInput(this.value)">
@@ -223,7 +222,6 @@
       <input type="text" id="currentRoom" placeholder="Código ou Nome da Sala Atual">
     </div>
 
-    <!-- Passo 2: Digitalização / Digitação -->
     <div class="card">
       <h3>📷 2. Leitura / Digitação de Patrimônio</h3>
       <button id="btnStartScan" onclick="toggleScanner()">📷 Ligar Câmera / Escanear</button>
@@ -244,7 +242,6 @@
       <div id="scanResult"></div>
     </div>
 
-    <!-- Passo 3: Estado e Exportação -->
     <div class="card">
       <h3>📊 3. Estado do Inventário</h3>
       <p>Total na Base: <strong id="totalCount">0</strong> | Auditados: <strong id="auditedCount">0</strong> (<span id="auditedPercent">0%</span>)</p>
@@ -258,7 +255,6 @@
 
   <!-- ABA 2: DASHBOARD ANALYTICS -->
   <div id="dashboardTab" class="tab-content">
-    <!-- Indicadores Chave (KPIs) -->
     <div class="card">
       <h3>📊 Indicadores Gerais</h3>
       <div class="kpi-grid">
@@ -285,7 +281,6 @@
       </div>
     </div>
 
-    <!-- Gráficos por Sala e por Responsável -->
     <div class="card">
       <h3>🏫 Itens Verificados por Sala</h3>
       <div class="chart-container">
@@ -319,12 +314,12 @@
   </div>
 
   <script>
-    // --- DICIONÁRIO DE SALAS FZEA PRÉ-CARREGADO ---
     const LOCAIS_PRECARREGADOS = {"12385": "12385 - FCHE06 04/DIRETORIA/DIRETOR (TÉRREO)", "12387": "12387 - FCHE06 44/DIRET/ASS.DIREÇÃO (TÉRREO)", "12389": "12389 - FCHE06 11/ATADM/ASSIST. (TÉRREO)", "12390": "12390 - FCHE06 10/DIRET/CONGREGAÇÃO (TÉRREO)", "12392": "12392 - FCHE06 03/DIRETORIA/SECRET. (TÉRREO)", "12393": "12393 - FCHE06 42/ATFIN/ASSISTENTE (TÉRREO)", "12394": "12394 - FCHE06 38/CONTAB/TESOURARIA (TÉRREO)", "12400": "12400 - FCHE06 36/ATFIN/ALMOX (TÉRREO)", "12404": "12404 - PDHE24 21/ATADM/VEÍCULOS (TERREO)", "12405": "12405 - FCHE06 39/ATADM/SÇ EXPEDIEN (TÉRREO)", "12406": "12406 - FCHE06 02/ATACAD/ASSIST. (TÉRREO)", "12408": "12408 - FCHE06 13/BIBLIO/BIBLIOTECA (TÉRREO)", "12415": "12415 - PDHE24 19/ATADM/SÇ MANUT. (TERREO)", "12416": "12416 - PDHE24 16/ATADM/OF.MANUTEN (TERREO)", "12423": "12423 - FCHE06 20/SÇ TI/SUPORTE TI (TÉRREO)", "12424": "12424 - FCHE06 22/SÇ TI/SALA REDES (TÉRREO)", "12427": "12427 - FCHE06 29/GRAD/COORDENAÇÃO (TÉRREO)", "12431": "12431 - FCHE06 05/POSGRAD/SECRET. (TÉRREO)", "12432": "12432 - FCHE06 34/PESQ/SECRETARIA (TÉRREO)", "12433": "12433 - FCHE06 35/CULTEXT/SECRET. (TÉRREO)", "12435": "12435 - FCHE06 30/GRAD/SALA ATEND. (TÉRREO)", "12439": "12439 - FCHE06 08/RECDOC/ARQUIVO (TÉRREO)", "12440": "12440 - FCHE06 12/ATADM/SÇ COMPRAS (TÉRREO)", "12441": "12441 - FCHE06 43/ATFIN/SÇ FINANÇAS (TÉRREO)", "12443": "12443 - FCHE06 41/ATADM/SÇ PESSOAL (TÉRREO)", "12445": "12445 - FCHE06 24/BIBLIO/MUSEU (TÉRREO)", "12448": "12448 - FCHE06 18/BIBLIO/CIRCULAÇÃO (TÉRREO)", "12453": "12453 - FCHE06 16/BIBLIO/ACERVO (TÉRREO)", "12454": "12454 - FCHE06 26/SALA ESTUDO GRUPO (TÉRREO)", "12457": "12457 - FCHE06 15/BIBLIO/MULTIMÍDIA (TÉRREO)", "12461": "12461 - FCHE06 23/BIBLIO/RESTAURO (TÉRREO)", "12463": "12463 - FCHE06 07/RECDOC/PROTOCOLO (TÉRREO)", "12465": "12465 - PDHE24 23/RESTAURANTE/COZIN (TERREO)", "12466": "12466 - PDHE24 24/RESTAUR/REFEITÓR (TERREO)", "12467": "12467 - PDHE24 25/REST/SALA ATEND. (TERREO)", "12468": "12468 - PDHE24 02/SÇ MED/ENFERMARIA (TERREO)", "12469": "12469 - PDHE24 03/SÇ MED/ODONTOL. (TERREO)", "12470": "12470 - PDHE24 01/SÇ MED/RECEPÇÃO (TERREO)", "12471": "12471 - PDHE24 13/UBAS/SALA REUNIÃO (TERREO)", "12472": "12472 - PDHE24 14/UBAS/SERVIÇO SOC. (TERREO)", "12473": "12473 - PDHE24 15/UBAS/PSICOLOGIA (TERREO)", "12474": "12474 - ZTL01 02/LAB/BOMBEAMENTO (TERREO)", "12475": "12475 - ZTL01 01/CENTRAL/GLP (TERREO)", "12478": "12478 - FCHE06 14/BIBLIO/PROCESSAM. (TÉRREO)", "12479": "12479 - FCHE06 17/BIBLIO/CHEFIA (TÉRREO)", "12480": "12480 - FCHE06 06/RECDOC/ARQUIVO (TÉRREO)", "12481": "12481 - FCHE06 37/ATFIN/ALMOX/DEP (TÉRREO)", "12482": "12482 - FCHE06 21/SÇ TI/DEP.TI (TÉRREO)", "12483": "12483 - FCHE06 09/RECDOC/DEPÓSITO (TÉRREO)", "12484": "12484 - PDHE24 17/ATADM/DEP.MANUT. (TERREO)", "12485": "12485 - PDHE24 18/ATADM/DEP.MANUT. (TERREO)", "12486": "12486 - PDHE24 20/ATADM/SALA FERRAM (TERREO)", "12487": "12487 - PDHE24 22/ATADM/VESTIÁRIO (TERREO)", "12488": "12488 - PDHE24 26/REST/ESTOQUE ALIM (TERREO)", "12489": "12489 - PDHE24 27/REST/CAMARA FRIG (TERREO)", "12490": "12490 - PDHE24 28/REST/CAMARA FRIG (TERREO)", "12491": "12491 - PDHE24 29/REST/DEP.LIMPEZA (TERREO)", "12492": "12492 - PDHE24 30/REST/VESTIÁRIO (TERREO)", "12493": "12493 - PDHE24 04/UBAS/SALA ATEND. (TERREO)", "12494": "12494 - PDHE24 05/UBAS/EXPEDIENTE (TERREO)", "12495": "12495 - PDHE24 06/UBAS/EXPEDIENTE (TERREO)", "12496": "12496 - PDHE24 07/UBAS/SALA ATEND. (TERREO)", "12497": "12497 - PDHE24 08/UBAS/COPINHA (TERREO)", "12498": "12498 - PDHE24 09/UBAS/SALA REUNIÃO (TERREO)", "12499": "12499 - PDHE24 10/UBAS/RECEPÇÃO (TERREO)", "12500": "12500 - PDHE24 11/UBAS/SALA VACINA (TERREO)", "12501": "12501 - PDHE24 12/UBAS/DEPÓSITO (TERREO)", "12503": "12503 - FCHE06 28/SALA ESTUDO INDIV (TÉRREO)", "12504": "12504 - FCHE06 27/SALA ESTUDO INDIV (TÉRREO)", "12505": "12505 - FCHE06 25/SALA ESTUDO GRUPO (TÉRREO)", "12506": "12506 - FCHE06 31/SALA REUNIÃO (TÉRREO)", "12507": "12507 - FCHE06 32/SALA REUNIÃO (TÉRREO)", "12508": "12508 - FCHE06 33/SALA ATENDIMENTO (TÉRREO)", "12509": "12509 - FCHE06 40/ATADM/CHEFIA (TÉRREO)", "12510": "12510 - FCHE06 01/ATACAD/CHEFIA (TÉRREO)", "12511": "12511 - FCHE06 19/SÇ TI/CHEFIA TI (TÉRREO)", "12512": "12512 - ZTL01 03/SUBESTAÇÃO 01 (TERREO)", "12513": "12513 - ZTL01 04/SUBESTAÇÃO 02 (TERREO)", "12514": "12514 - ZTL01 05/SUBESTAÇÃO 03 (TERREO)", "12515": "12515 - ZTL01 06/PORTARIA 01 (TERREO)", "12516": "12516 - ZTL01 07/PORTARIA 02 (TERREO)", "12517": "12517 - ZTL01 08/CENTRAL/SEGURANÇ (TERREO)", "12518": "12518 - ZTL01 09/SALA RESÍDUOS (TERREO)", "12519": "12519 - ZTL01 10/ESTAÇÃO/TRAT.AGUA (TERREO)", "12520": "12520 - ZTL01 11/ESTAÇÃO/TRAT.ESG. (TERREO)"};
 
     let rawHeaders = [];
     let database = [];
     let mepLocaisNorm = {};
+    let activeDelimiter = ';';
     let html5QrcodeScanner = null;
     let isScanning = false;
     let isTorchOn = false;
@@ -378,7 +373,6 @@
       return mepLocaisNorm[norm] || codigoSala;
     }
 
-    // --- SINAIS SONOROS ---
     function playScanBeep() {
       try {
         initAudio();
@@ -425,7 +419,6 @@
       } catch(e){}
     }
 
-    // --- PROCESSAMENTO DO CSV ---
     document.getElementById('csvFileInput').addEventListener('change', function(e) {
       const file = e.target.files[0];
       if (!file) return;
@@ -434,7 +427,7 @@
       reader.onload = function(evt) {
         parseCSVPatrimonio(evt.target.result);
       };
-      reader.readAsText(file, 'UTF-8');
+      reader.readAsText(file, 'ISO-8859-1');
     });
 
     function parseCSVPatrimonio(text) {
@@ -442,10 +435,25 @@
       const lines = text.split(/\r?\n/).filter(line => line.trim() !== '');
       if (lines.length === 0) return;
 
-      const delimiter = text.includes(';') ? ';' : ',';
+      // DETECÇÃO INTELIGENTE DE DELIMITADOR (\t, ; ou ,)
+      const firstLine = lines[0];
+      const countTab = (firstLine.match(/\t/g) || []).length;
+      const countSemi = (firstLine.match(/;/g) || []).length;
+      const countComma = (firstLine.match(/,/g) || []).length;
+
+      if (countTab >= countSemi && countTab >= countComma && countTab > 0) {
+        activeDelimiter = '\t';
+      } else if (countSemi >= countComma && countSemi > 0) {
+        activeDelimiter = ';';
+      } else {
+        activeDelimiter = ',';
+      }
 
       function splitRow(rowStr) {
-        const regex = new RegExp(`(?:^|${delimiter})(?:"([^"]*)"|([^"${delimiter}]*))`, 'g');
+        if (activeDelimiter === '\t') {
+          return rowStr.split('\t').map(v => v.replace(/^"|"$/g, '').trim());
+        }
+        const regex = new RegExp(`(?:^|${activeDelimiter})(?:"([^"]*)"|([^"${activeDelimiter}]*))`, 'g');
         const matches = [];
         let match;
         while ((match = regex.exec(rowStr)) !== null) {
@@ -461,42 +469,40 @@
 
       let patrimonioColIdx = 0;
       let enderecoColIdx = 2;
-      let respColIdx = 9;
-      let verificadoColIdx = -1;
+      let respColIdx = 1;
 
       rawHeaders.forEach((h, idx) => {
-        const headerNorm = h.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-        if (headerNorm.includes("patrimonio") || headerNorm.includes("tombo") || headerNorm.includes("codigo")) {
-          patrimonioColIdx = idx;
-        }
-        if (headerNorm.includes("endereco") || headerNorm.includes("local") || headerNorm.includes("sala")) {
-          enderecoColIdx = idx;
-        }
-        if (headerNorm.includes("resp") || headerNorm.includes("pessoa") || headerNorm.includes("nome") || headerNorm.includes("usuario") || headerNorm.includes("detentor")) {
-          respColIdx = idx;
-        }
-        if (headerNorm.includes("codigo_verificado") || headerNorm.includes("verificado")) {
-          verificadoColIdx = idx;
-        }
+        const hClean = h.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+        if (hClean.includes("patrimonio") || hClean.includes("tombo")) patrimonioColIdx = idx;
+        if (hClean.includes("endereco") || hClean.includes("centro gerencial")) enderecoColIdx = idx;
+        if (hClean.includes("responsavel") || hClean.includes("nome")) respColIdx = idx;
       });
 
       for (let i = 1; i < lines.length; i++) {
         const cols = splitRow(lines[i]);
-        if (cols.length > 0) {
-          const enderecoRaw = cols[enderecoColIdx] || '';
+        if (cols.length > 0 && cols[patrimonioColIdx]) {
+          const patrimonio = cols[patrimonioColIdx] || '';
+          const enderecoRaw = cols[2] || cols[8] || cols[enderecoColIdx] || '';
           
-          // Verifica se é uma reimportação de um CSV que já possuía a coluna "Codigo_Verificado" como SIM
-          let statusVerificado = "NÃO";
-          if (verificadoColIdx !== -1 && cols[verificadoColIdx]) {
-            const valNorm = cols[verificadoColIdx].trim().toUpperCase();
-            if (valNorm === "SIM" || valNorm === "S" || valNorm === "TRUE") {
-              statusVerificado = "SIM";
-            }
+          let codVerificado = (cols[20] || '').trim().toUpperCase();
+          let dataAlteracao = (cols[16] || '').trim().toUpperCase();
+          let condicao = (cols[10] || '').trim();
+
+          // Avaliação Rígida de Status
+          let isAuditado = false;
+          if (codVerificado === "SIM") {
+            isAuditado = true;
+          } else if (codVerificado === "NÃO" || codVerificado === "NAO") {
+            isAuditado = false;
+          } else if (dataAlteracao === "SIM" || condicao.startsWith("OK")) {
+            isAuditado = true;
           }
 
+          const statusVerificado = isAuditado ? "SIM" : "NÃO";
+
           const item = {
-            patrimonio: cols[patrimonioColIdx] || cols[0] || '',
-            unidade: cols[1] || '', 
+            patrimonio: patrimonio,
+            unidade: cols[1] || 'FZEA', 
             centroGerencial: enderecoRaw,
             material: cols[3] || '', 
             marca: cols[4] || '', 
@@ -504,14 +510,14 @@
             tipo: cols[6] || '', 
             noSerie: cols[7] || '', 
             valor: cols[8] || '',
-            resp: cols[respColIdx] || 'Não Informado', 
-            situacao: statusVerificado === "SIM" ? (cols[10] || 'OK') : 'Pendente', 
-            condicao: cols[11] || '',
-            inventario: statusVerificado === "SIM" ? (cols[12] || 'Confirmado OK') : 'Pendente', 
+            resp: cols[9] || cols[17] || 'Não Informado', 
+            situacao: isAuditado ? (cols[9] || 'OK') : 'Pendente', 
+            condicao: condicao || (isAuditado ? 'OK' : 'Pendente'),
+            inventario: isAuditado ? (cols[12] || 'Confirmado OK') : 'Pendente', 
             retirado: cols[13] || '',
-            localEncontrado: cols[14] || '', 
-            dataLeitura: cols[15] || '',
-            codigoVerificado: statusVerificado // "SIM" ou "NÃO"
+            localEncontrado: cols[18] || '', 
+            dataLeitura: cols[19] || '',
+            codigoVerificado: statusVerificado
           };
 
           database.push(item);
@@ -530,7 +536,18 @@
       });
 
       updateCounters();
-      document.getElementById('scanResult').innerHTML = `<div class="result-box status-ok">✅ Planilha carregada: ${database.length} itens. Todos iniciados com Codigo_Verificado = "NÃO" (0%).</div>`;
+
+      const total = database.length;
+      const auditados = database.filter(i => i.codigoVerificado === "SIM").length;
+      const percent = total > 0 ? ((auditados / total) * 100).toFixed(1) : 0;
+
+      document.getElementById('scanResult').innerHTML = `
+        <div class="result-box status-ok">
+          ✅ <b>Planilha lida com sucesso!</b><br>
+          • Total na base: <b>${total}</b> itens<br>
+          • Já auditados previamente: <b>${auditados}</b> (${percent}%)<br>
+          • Faltam auditar: <b>${total - auditados}</b> itens
+        </div>`;
     }
 
     function syncRoomInput(val) {
@@ -551,7 +568,6 @@
       input.value = '';
     }
 
-    // --- CONTROLE DA CÂMERA E FLASH ---
     function toggleScanner() {
       initAudio();
       const btn = document.getElementById('btnStartScan');
@@ -631,7 +647,6 @@
       }
     }
 
-    // --- LEITURA E PROCESSAMENTO ---
     function onBarcodeScanned(decodedText) {
       if (isPaused) return;
 
@@ -660,7 +675,6 @@
       const currentRoomNome = obterNomeSala(currentRoomInput);
 
       if (item) {
-        // Atualiza a nova coluna no momento da leitura
         item.codigoVerificado = "SIM";
         item.dataLeitura = now;
         item.localEncontrado = currentRoomInput;
@@ -722,12 +736,6 @@
 
           database.push(newItem);
 
-          resultBox.innerHTML = `
-            <div class="result-box status-danger">
-              <strong>🔴 NOVO ITEM REGISTRADO!</strong><br>
-              <b>Código:</b> ${decodedText} | <b>Descrição:</b> ${descFinal}
-            </div>`;
-
           updateCounters();
           renderHistory(decodedText, null);
           document.getElementById('btnNextScan').style.display = 'block';
@@ -745,7 +753,6 @@
       }
     }
 
-    // Função utilitária centralizada de verificação
     function isVerificado(item) {
       return item.codigoVerificado === "SIM";
     }
@@ -772,7 +779,6 @@
       historyList.insertBefore(div, historyList.firstChild);
     }
 
-    // --- DASHBOARD ANALYTICS LOGIC ---
     function renderDashboard() {
       const total = database.length;
       const auditedItems = database.filter(isVerificado);
@@ -781,17 +787,15 @@
       const movedCount = database.filter(i => isVerificado(i) && (i.situacao.includes('Movido') || i.situacao.includes('Novo'))).length;
       const progressPercent = total > 0 ? ((auditedCount / total) * 100).toFixed(1) : 0;
 
-      // KPIs
       document.getElementById('kpiTotal').innerText = total;
       document.getElementById('kpiAudited').innerText = auditedCount;
       document.getElementById('kpiPending').innerText = pendingCount;
       document.getElementById('kpiMoved').innerText = movedCount;
       document.getElementById('kpiProgress').innerText = progressPercent + '%';
 
-      // Agrupamento por Sala
       const roomsData = {};
       database.forEach(item => {
-        const sala = item.localEncontrado || item.centroGerencial || "Não Definida";
+        const sala = (isVerificado(item) && item.localEncontrado) ? item.localEncontrado : (item.centroGerencial || "Não Definida");
         const salaNome = obterNomeSala(sala);
         if (!roomsData[salaNome]) {
           roomsData[salaNome] = { total: 0, auditados: 0 };
@@ -806,7 +810,6 @@
       const roomAuditados = roomLabels.map(k => roomsData[k].auditados);
       const roomTotais = roomLabels.map(k => roomsData[k].total);
 
-      // Agrupamento por Responsável
       const respData = {};
       database.forEach(item => {
         const resp = item.resp || "Sem Responsável";
@@ -823,7 +826,6 @@
       const respAuditados = respLabels.map(k => respData[k].auditados);
       const respTotais = respLabels.map(k => respData[k].total);
 
-      // Renderizar Tabela Resumo por Responsável
       const tbody = document.querySelector('#respTable tbody');
       if (respLabels.length === 0) {
         tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;">Carregue o CSV para visualizar os dados.</td></tr>';
@@ -843,7 +845,6 @@
         });
       }
 
-      // Renderizar Gráfico de Salas (Chart.js)
       const ctxRooms = document.getElementById('roomsChart').getContext('2d');
       if (roomsChartInstance) roomsChartInstance.destroy();
       
@@ -871,7 +872,6 @@
         }
       });
 
-      // Renderizar Gráfico de Responsáveis (Chart.js)
       const ctxResp = document.getElementById('respChart').getContext('2d');
       if (respChartInstance) respChartInstance.destroy();
 
@@ -908,8 +908,9 @@
       }
 
       let headers = rawHeaders.length > 0 ? [...rawHeaders] : [
-        "No. Patrimônio","Unidade","Endereço/Local","Material","Marca","Modelo",
-        "Tipo","No.Série","Valor","Resp.","Situação","Condição","Inventário","Retirado"
+        "No.Patrimônio","Nome","Centro Gerencial","Material","Marca","Modelo",
+        "Tipo","N.Serie","Endereço/Local","Situação","Condição","Conservação",
+        "Utilização","Retirado/Recebido","Leilão","Forma de uso","Data Alteração","Responsável"
       ];
 
       if (!headers.includes("Local_Encontrado")) headers.push("Local_Encontrado");
@@ -919,16 +920,17 @@
       let csvContent = "\uFEFF" + headers.map(h => `"${h}"`).join(";") + "\n";
 
       database.forEach(row => {
-        const line = [
+        let line = [
           row.patrimonio, row.unidade, row.centroGerencial, row.material, row.marca,
-          row.modelo, row.tipo, row.noSerie, row.valor, row.resp, row.situacao,
-          row.condicao, row.inventario, row.retirado, row.localEncontrado, row.dataLeitura,
-          row.codigoVerificado
+          row.modelo, row.tipo, row.noSerie, row.centroGerencial, row.situacao,
+          row.condicao, "", row.inventario, row.retirado, "", "", "", row.resp,
+          row.localEncontrado, row.dataLeitura, row.codigoVerificado
         ];
+
         csvContent += line.map(v => `"${v || ''}"`).join(";") + "\n";
       });
 
-      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=iso-8859-1;' });
       const link = document.createElement("a");
       const url = URL.createObjectURL(blob);
       link.setAttribute("href", url);
