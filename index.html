@@ -31,7 +31,7 @@
       background: #e9ecef;
       border: none;
       border-radius: 8px;
-      font-size: 16px;
+      font-size: 15px;
       font-weight: bold;
       color: #495057;
       cursor: pointer;
@@ -77,6 +77,11 @@
     .btn-secondary {
       background: #6c757d;
       margin-top: 5px;
+    }
+    .btn-warning {
+      background: #ffc107;
+      color: #333;
+      margin-top: 15px;
     }
     .btn-next {
       background: #28a745;
@@ -175,6 +180,22 @@
       margin-top: 15px;
       margin-bottom: 25px;
       width: 100%;
+      height: 300px;
+    }
+    .donut-container {
+      position: relative;
+      margin: 15px auto;
+      width: 200px;
+      height: 200px;
+    }
+    .donut-center-text {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      font-size: 24px;
+      font-weight: bold;
+      color: #0066cc;
     }
     .dash-table {
       width: 100%;
@@ -190,6 +211,51 @@
     .dash-table th {
       background-color: #f1f3f5;
     }
+
+    /* Estilos da Aba Pendências */
+    .resp-accordion {
+      border: 1px solid #ced4da;
+      border-radius: 8px;
+      margin-bottom: 12px;
+      overflow: hidden;
+      background: white;
+    }
+    .resp-header {
+      padding: 12px 15px;
+      background: #f8f9fa;
+      cursor: pointer;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-weight: bold;
+      font-size: 15px;
+      user-select: none;
+    }
+    .resp-header:hover {
+      background: #e9ecef;
+    }
+    .badge-pending {
+      background: #dc3545;
+      color: white;
+      padding: 4px 10px;
+      border-radius: 12px;
+      font-size: 13px;
+    }
+    .badge-ok {
+      background: #28a745;
+      color: white;
+      padding: 4px 10px;
+      border-radius: 12px;
+      font-size: 13px;
+    }
+    .resp-body {
+      display: none;
+      padding: 10px 15px;
+      border-top: 1px solid #dee2e6;
+    }
+    .resp-body.open {
+      display: block;
+    }
   </style>
 
   <!-- Bibliotecas externas -->
@@ -204,26 +270,27 @@
   <div class="nav-tabs">
     <button class="nav-tab active" onclick="switchTab('auditTab', this)">📷 Auditoria</button>
     <button class="nav-tab" onclick="switchTab('dashboardTab', this)">📊 Dashboard</button>
+    <button class="nav-tab" onclick="switchTab('pendingTab', this)">🔍 Pendências</button>
   </div>
 
   <!-- ABA 1: AUDITORIA -->
   <div id="auditTab" class="tab-content active">
     <div class="card">
       <h3>📋 1. Base de Patrimônio e Sala Atual</h3>
-      <div class="badge-info">⚡ Exibição simplificada de número da sala ativada.</div>
+      <div class="badge-info">⚡ Carregue tanto a planilha original quanto as exportadas (simplificadas).</div>
       
-      <label style="margin-top: 15px; display: block;"><strong>Importar Planilha de Patrimônio (CSV):</strong></label>
+      <label style="margin-top: 15px; display: block;"><strong>Importar Planilha de Patrimônio (CSV/TXT):</strong></label>
       <input type="file" id="csvFileInput" accept=".csv, .tsv, .txt">
       
       <label style="margin-top: 15px; display: block;"><strong>Selecione a Sala Atual:</strong></label>
       <select id="roomSelect" onchange="syncRoomInput(this.value)">
-        <option value="">-- Carregue o CSV de Patrimônio primeiro --</option>
+        <option value="">-- Carregue o CSV primeiro --</option>
       </select>
       <input type="text" id="currentRoom" placeholder="Número ou Código da Sala Atual">
     </div>
 
     <div class="card">
-      <h3>📷 2. Leitura / Digitação de Patrimônio</h3>
+      <h3>📷 2. Leitura / Digitação</h3>
       <button id="btnStartScan" onclick="toggleScanner()">📷 Ligar Câmera / Escanear</button>
       <button id="btnTorch" class="btn-secondary" onclick="toggleTorch()" style="display: none;">🔦 Ligar Flash</button>
       
@@ -243,10 +310,11 @@
     </div>
 
     <div class="card">
-      <h3>📊 3. Estado do Inventário</h3>
+      <h3>📊 3. Estado e Exportação</h3>
       <p>Total na Base: <strong id="totalCount">0</strong> | Auditados: <strong id="auditedCount">0</strong> (<span id="auditedPercent">0%</span>)</p>
       
-      <button onclick="exportCSV()" style="background: #28a745;">📥 Baixar CSV Atualizado</button>
+      <!-- Exporta a planilha SIMPLIFICADA total -->
+      <button onclick="exportCSVSimplificado(false)" style="background: #28a745;">📥 Baixar Planilha Simplificada Total</button>
       
       <h4 style="margin-top: 20px;">Últimas Leituras:</h4>
       <div id="historyList"></div>
@@ -255,8 +323,14 @@
 
   <!-- ABA 2: DASHBOARD ANALYTICS -->
   <div id="dashboardTab" class="tab-content">
+    
     <div class="card">
-      <h3>📊 Indicadores Gerais</h3>
+      <h3>📊 Progresso Geral</h3>
+      <div class="donut-container">
+        <canvas id="progressDonut"></canvas>
+        <div class="donut-center-text" id="donutPercentText">0%</div>
+      </div>
+      
       <div class="kpi-grid">
         <div class="kpi-card">
           <h4>Total de Itens</h4>
@@ -274,10 +348,6 @@
           <h4>Movidos / Novos</h4>
           <div class="number" id="kpiMoved" style="color: #ffc107;">0</div>
         </div>
-        <div class="kpi-card">
-          <h4>Progresso</h4>
-          <div class="number" id="kpiProgress" style="color: #17a2b8;">0%</div>
-        </div>
       </div>
     </div>
 
@@ -289,12 +359,12 @@
     </div>
 
     <div class="card">
-      <h3>👤 Itens Verificados por Responsável</h3>
+      <h3>👤 Progresso por Responsável</h3>
       <div class="chart-container">
         <canvas id="respChart"></canvas>
       </div>
       
-      <h4 style="margin-top: 20px;">Resumo por Responsável</h4>
+      <h4 style="margin-top: 20px;">Tabela Resumo</h4>
       <div style="overflow-x: auto;">
         <table class="dash-table" id="respTable">
           <thead>
@@ -313,13 +383,34 @@
     </div>
   </div>
 
-  <script>
-    const LOCAIS_PRECARREGADOS = {"12385": "12385 - FCHE06 04/DIRETORIA/DIRETOR (TÉRREO)", "12387": "12387 - FCHE06 44/DIRET/ASS.DIREÇÃO (TÉRREO)", "12389": "12389 - FCHE06 11/ATADM/ASSIST. (TÉRREO)", "12390": "12390 - FCHE06 10/DIRET/CONGREGAÇÃO (TÉRREO)", "12392": "12392 - FCHE06 03/DIRETORIA/SECRET. (TÉRREO)", "12393": "12393 - FCHE06 42/ATFIN/ASSISTENTE (TÉRREO)", "12394": "12394 - FCHE06 38/CONTAB/TESOURARIA (TÉRREO)", "12400": "12400 - FCHE06 36/ATFIN/ALMOX (TÉRREO)", "12404": "12404 - PDHE24 21/ATADM/VEÍCULOS (TERREO)", "12405": "12405 - FCHE06 39/ATADM/SÇ EXPEDIEN (TÉRREO)", "12406": "12406 - FCHE06 02/ATACAD/ASSIST. (TÉRREO)", "12408": "12408 - FCHE06 13/BIBLIO/BIBLIOTECA (TÉRREO)", "12415": "12415 - PDHE24 19/ATADM/SÇ MANUT. (TERREO)", "12416": "12416 - PDHE24 16/ATADM/OF.MANUTEN (TERREO)", "12423": "12423 - FCHE06 20/SÇ TI/SUPORTE TI (TÉRREO)", "12424": "12424 - FCHE06 22/SÇ TI/SALA REDES (TÉRREO)", "12427": "12427 - FCHE06 29/GRAD/COORDENAÇÃO (TÉRREO)", "12431": "12431 - FCHE06 05/POSGRAD/SECRET. (TÉRREO)", "12432": "12432 - FCHE06 34/PESQ/SECRETARIA (TÉRREO)", "12433": "12433 - FCHE06 35/CULTEXT/SECRET. (TÉRREO)", "12435": "12435 - FCHE06 30/GRAD/SALA ATEND. (TÉRREO)", "12439": "12439 - FCHE06 08/RECDOC/ARQUIVO (TÉRREO)", "12440": "12440 - FCHE06 12/ATADM/SÇ COMPRAS (TÉRREO)", "12441": "12441 - FCHE06 43/ATFIN/SÇ FINANÇAS (TÉRREO)", "12443": "12443 - FCHE06 41/ATADM/SÇ PESSOAL (TÉRREO)", "12445": "12445 - FCHE06 24/BIBLIO/MUSEU (TÉRREO)", "12448": "12448 - FCHE06 18/BIBLIO/CIRCULAÇÃO (TÉRREO)", "12453": "12453 - FCHE06 16/BIBLIO/ACERVO (TÉRREO)", "12454": "12454 - FCHE06 26/SALA ESTUDO GRUPO (TÉRREO)", "12457": "12457 - FCHE06 15/BIBLIO/MULTIMÍDIA (TÉRREO)", "12461": "12461 - FCHE06 23/BIBLIO/RESTAURO (TÉRREO)", "12463": "12463 - FCHE06 07/RECDOC/PROTOCOLO (TÉRREO)", "12465": "12465 - PDHE24 23/RESTAURANTE/COZIN (TERREO)", "12466": "12466 - PDHE24 24/RESTAUR/REFEITÓR (TERREO)", "12467": "12467 - PDHE24 25/REST/SALA ATEND. (TERREO)", "12468": "12468 - PDHE24 02/SÇ MED/ENFERMARIA (TERREO)", "12469": "12469 - PDHE24 03/SÇ MED/ODONTOL. (TERREO)", "12470": "12470 - PDHE24 01/SÇ MED/RECEPÇÃO (TERREO)", "12471": "12471 - PDHE24 13/UBAS/SALA REUNIÃO (TERREO)", "12472": "12472 - PDHE24 14/UBAS/SERVIÇO SOC. (TERREO)", "12473": "12473 - PDHE24 15/UBAS/PSICOLOGIA (TERREO)", "12474": "12474 - ZTL01 02/LAB/BOMBEAMENTO (TERREO)", "12475": "12475 - ZTL01 01/CENTRAL/GLP (TERREO)", "12478": "12478 - FCHE06 14/BIBLIO/PROCESSAM. (TÉRREO)", "12479": "12479 - FCHE06 17/BIBLIO/CHEFIA (TÉRREO)", "12480": "12480 - FCHE06 06/RECDOC/ARQUIVO (TÉRREO)", "12481": "12481 - FCHE06 37/ATFIN/ALMOX/DEP (TÉRREO)", "12482": "12482 - FCHE06 21/SÇ TI/DEP.TI (TÉRREO)", "12483": "12483 - FCHE06 09/RECDOC/DEPÓSITO (TÉRREO)", "12484": "12484 - PDHE24 17/ATADM/DEP.MANUT. (TERREO)", "12485": "12485 - PDHE24 18/ATADM/DEP.MANUT. (TERREO)", "12486": "12486 - PDHE24 20/ATADM/SALA FERRAM (TERREO)", "12487": "12487 - PDHE24 22/ATADM/VESTIÁRIO (TERREO)", "12488": "12488 - PDHE24 26/REST/ESTOQUE ALIM (TERREO)", "12489": "12489 - PDHE24 27/REST/CAMARA FRIG (TERREO)", "12490": "12490 - PDHE24 28/REST/CAMARA FRIG (TERREO)", "12491": "12491 - PDHE24 29/REST/DEP.LIMPEZA (TERREO)", "12492": "12492 - PDHE24 30/REST/VESTIÁRIO (TERREO)", "12493": "12493 - PDHE24 04/UBAS/SALA ATEND. (TERREO)", "12494": "12494 - PDHE24 05/UBAS/EXPEDIENTE (TERREO)", "12495": "12495 - PDHE24 06/UBAS/EXPEDIENTE (TERREO)", "12496": "12496 - PDHE24 07/UBAS/SALA ATEND. (TERREO)", "12497": "12497 - PDHE24 08/UBAS/COPINHA (TERREO)", "12498": "12498 - PDHE24 09/UBAS/SALA REUNIÃO (TERREO)", "12499": "12499 - PDHE24 10/UBAS/RECEPÇÃO (TERREO)", "12500": "12500 - PDHE24 11/UBAS/SALA VACINA (TERREO)", "12501": "12501 - PDHE24 12/UBAS/DEPÓSITO (TERREO)", "12503": "12503 - FCHE06 28/SALA ESTUDO INDIV (TÉRREO)", "12504": "12504 - FCHE06 27/SALA ESTUDO INDIV (TÉRREO)", "12505": "12505 - FCHE06 25/SALA ESTUDO GRUPO (TÉRREO)", "12506": "12506 - FCHE06 31/SALA REUNIÃO (TÉRREO)", "12507": "12507 - FCHE06 32/SALA REUNIÃO (TÉRREO)", "12508": "12508 - FCHE06 33/SALA ATENDIMENTO (TÉRREO)", "12509": "12509 - FCHE06 40/ATADM/CHEFIA (TÉRREO)", "12510": "12510 - FCHE06 01/ATACAD/CHEFIA (TÉRREO)", "12511": "12511 - FCHE06 19/SÇ TI/CHEFIA TI (TÉRREO)", "12512": "12512 - ZTL01 03/SUBESTAÇÃO 01 (TERREO)", "12513": "12513 - ZTL01 04/SUBESTAÇÃO 02 (TERREO)", "12514": "12514 - ZTL01 05/SUBESTAÇÃO 03 (TERREO)", "12515": "12515 - ZTL01 06/PORTARIA 01 (TERREO)", "12516": "12516 - ZTL01 07/PORTARIA 02 (TERREO)", "12517": "12517 - ZTL01 08/CENTRAL/SEGURANÇ (TERREO)", "12518": "12518 - ZTL01 09/SALA RESÍDUOS (TERREO)", "12519": "12519 - ZTL01 10/ESTAÇÃO/TRAT.AGUA (TERREO)", "12520": "12520 - ZTL01 11/ESTAÇÃO/TRAT.ESG. (TERREO)"};
+  <!-- ABA 3: PENDÊNCIAS POR RESPONSÁVEL -->
+  <div id="pendingTab" class="tab-content">
+    <div class="card">
+      <h3>🔍 Pendências por Responsável</h3>
+      <p style="font-size: 14px; color: #6c757d;">
+        O que falta ser localizado, separado por pessoa.
+      </p>
+      
+      <!-- Exporta a planilha SIMPLIFICADA focada APENAS nas Pendências -->
+      <button onclick="exportCSVSimplificado(true)" class="btn-warning">
+        📥 Baixar Relatório de Pendências (Faltantes)
+      </button>
 
-    let rawHeaders = [];
+      <input type="text" id="searchRespInput" placeholder="🔎 Filtrar responsável por nome..." onkeyup="renderPendingTab()" style="margin-top: 15px;">
+    </div>
+
+    <div id="pendingContainer">
+      <div class="card" style="text-align: center; color: #6c757d;">
+        Carregue uma planilha de patrimônio para ver as pendências.
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const LOCAIS_PRECARREGADOS = {"12385": "12385 - FCHE06 04/DIRETORIA/DIRETOR (TÉRREO)", "12387": "12387 - FCHE06 44/DIRET/ASS.DIREÇÃO (TÉRREO)", "12389": "12389 - FCHE06 11/ATADM/ASSIST. (TÉRREO)", "12390": "12390 - FCHE06 10/DIRET/CONGREGAÇÃO (TÉRREO)", "12392": "12392 - FCHE06 03/DIRETORIA/SECRET. (TÉRREO)", "12393": "12393 - FCHE06 42/ATFIN/ASSISTENTE (TÉRREO)", "12394": "12394 - FCHE06 38/CONTAB/TESOURARIA (TÉRREO)", "12400": "12400 - FCHE06 36/ATFIN/ALMOX (TÉRREO)", "12404": "12404 - PDHE24 21/ATADM/VEÍCULOS (TERREO)", "12405": "12405 - FCHE06 39/ATADM/SÇ EXPEDIEN (TÉRREO)", "12406": "12406 - FCHE06 02/ATACAD/ASSIST. (TÉRREO)", "12408": "12408 - FCHE06 13/BIBLIO/BIBLIOTECA (TÉRREO)", "12415": "12415 - PDHE24 19/ATADM/SÇ MANUT. (TERREO)", "12416": "12416 - PDHE24 16/ATADM/OF.MANUTEN (TERREO)", "12423": "12423 - FCHE06 20/SÇ TI/SUPORTE TI (TÉRREO)", "12424": "12424 - FCHE06 22/SÇ TI/SALA REDES (TÉRREO)", "12427": "12427 - FCHE06 29/GRAD/COORDENAÇÃO (TÉRREO)", "12431": "12431 - FCHE06 05/POSGRAD/SECRET. (TÉRREO)", "12432": "12432 - FCHE06 34/PESQ/SECRETARIA (TÉRREO)", "12433": "12433 - FCHE06 35/CULTEXT/SECRET. (TÉRREO)", "12435": "12435 - FCHE06 30/GRAD/SALA ATEND. (TÉRREO)", "12439": "12439 - FCHE06 08/RECDOC/ARQUIVO (TÉRREO)", "12440": "12440 - FCHE06 12/ATADM/SÇ COMPRAS (TÉRREO)", "12441": "12441 - FCHE06 43/ATFIN/SÇ FINANÇAS (TÉRREO)", "12443": "12443 - FCHE06 41/ATADM/SÇ PESSOAL (TÉRREO)", "12445": "12445 - FCHE06 24/BIBLIO/MUSEU (TÉRREO)", "12448": "12448 - FCHE06 18/BIBLIO/CIRCULAÇÃO (TÉRREO)", "12453": "12453 - FCHE06 16/BIBLIO/ACERVO (TÉRREO)", "12454": "12454 - FCHE06 26/SALA ESTUDO GRUPO (TÉRREO)", "12457": "12457 - FCHE06 15/BIBLIO/MULTIMÍDIA (TÉRREO)", "12461": "12461 - FCHE06 23/BIBLIO/RESTAURO (TÉRREO)", "12463": "12463 - FCHE06 07/RECDOC/PROTOCOLO (TÉRREO)", "12465": "12465 - PDHE24 23/RESTAURANTE/COZIN (TERREO)", "12466": "12466 - PDHE24 24/RESTAUR/REFEITÓR (TERREO)", "12467": "12467 - PDHE24 25/REST/SALA ATEND. (TERREO)", "12468": "12468 - PDHE24 02/SÇ MED/ENFERMARIA (TERREO)", "12469": "12469 - PDHE24 03/SÇ MED/ODONTOL. (TERREO)", "12470": "12470 - PDHE24 01/SÇ MED/RECEPÇÃO (TERREO)", "12471": "12471 - PDHE24 13/UBAS/SALA REUNIÃO (TERREO)", "12472": "12472 - PDHE24 14/UBAS/SERVIÇO SOC. (TERREO)", "12473": "12473 - PDHE24 15/UBAS/PSICOLOGIA (TERREO)", "12474": "12474 - ZTL01 02/LAB/BOMBEAMENTO (TERREO)", "12475": "12475 - ZTL01 01/CENTRAL/GLP (TERREO)", "12478": "12478 - FCHE06 14/BIBLIO/PROCESSAM. (TÉRREO)", "12479": "12479 - FCHE06 17/BIBLIO/CHEFIA (TÉRREO)", "12480": "12480 - FCHE06 06/RECDOC/ARQUIVO (TÉRREO)", "12481": "12481 - FCHE06 37/ATFIN/ALMOX/DEP (TÉRREO)", "12482": "12482 - FCHE06 21/SÇ TI/DEP.TI (TÉRREO)", "12483": "12483 - FCHE06 09/RECDOC/DEPÓSITO (TÉRREO)", "12484": "12484 - PDHE24 17/ATADM/DEP.MANUT. (TERREO)", "12485": "12485 - PDHE24 18/ATADM/DEP.MANUT. (TERREO)", "12486": "12486 - PDHE24 20/ATADM/SALA FERRAM (TERREO)", "12487": "12487 - PDHE24 22/ATADM/VESTIÁRIO (TERREO)", "12488": "12488 - PDHE24 26/REST/ESTOQUE ALIM (TERREO)", "12489": "12489 - PDHE24 27/REST/CAMARA FRIG (TERREO)", "12490": "12490 - PDHE24 28/REST/CAMARA FRIG (TERREO)", "12491": "12491 - PDHE24 29/REST/DEP.LIMPEZA (TERREO)", "12492": "12492 - PDHE24 30/REST/VESTIÁRIO (TERREO)", "12493": "12493 - PDHE24 04/UBAS/SALA ATEND. (TERREO)", "12494": "12494 - PDHE24 05/UBAS/EXPEDIENTE (TERREO)", "12495": "12495 - PDHE24 06/UBAS/EXPEDIENTE (TERREO)", "12496": "12496 - PDHE24 07/UBAS/SALA ATEND. (TERREO)", "12497": "12497 - PDHE24 08/COPINHA (TERREO)", "12498": "12498 - PDHE24 09/UBAS/SALA REUNIÃO (TERREO)", "12499": "12499 - PDHE24 10/UBAS/RECEPÇÃO (TERREO)", "12500": "12500 - PDHE24 11/UBAS/SALA VACINA (TERREO)", "12501": "12501 - PDHE24 12/UBAS/DEPÓSITO (TERREO)", "12503": "12503 - FCHE06 28/SALA ESTUDO INDIV (TÉRREO)", "12504": "12504 - FCHE06 27/SALA ESTUDO INDIV (TÉRREO)", "12505": "12505 - FCHE06 25/SALA ESTUDO GRUPO (TÉRREO)", "12506": "12506 - FCHE06 31/SALA REUNIÃO (TÉRREO)", "12507": "12507 - FCHE06 32/SALA REUNIÃO (TÉRREO)", "12508": "12508 - FCHE06 33/SALA ATENDIMENTO (TÉRREO)", "12509": "12509 - FCHE06 40/ATADM/CHEFIA (TÉRREO)", "12510": "12510 - FCHE06 01/ATACAD/CHEFIA (TÉRREO)", "12511": "12511 - FCHE06 19/SÇ TI/CHEFIA TI (TÉRREO)", "12512": "12512 - ZTL01 03/SUBESTAÇÃO 01 (TERREO)", "12513": "12513 - ZTL01 04/SUBESTAÇÃO 02 (TERREO)", "12514": "12514 - ZTL01 05/SUBESTAÇÃO 03 (TERREO)", "12515": "12515 - ZTL01 06/PORTARIA 01 (TERREO)", "12516": "12516 - ZTL01 07/PORTARIA 02 (TERREO)", "12517": "12517 - ZTL01 08/CENTRAL/SEGURANÇ (TERREO)", "12518": "12518 - ZTL01 09/SALA RESÍDUOS (TERREO)", "12519": "12519 - ZTL01 10/ESTAÇÃO/TRAT.AGUA (TERREO)", "12520": "12520 - ZTL01 11/ESTAÇÃO/TRAT.ESG. (TERREO)"};
+
     let database = [];
     let mepLocaisNorm = {};
-    let activeDelimiter = ';';
     let html5QrcodeScanner = null;
     let isScanning = false;
     let isTorchOn = false;
@@ -328,6 +419,7 @@
 
     let roomsChartInstance = null;
     let respChartInstance = null;
+    let progressDonutInstance = null;
 
     function switchTab(tabId, btnElement) {
       document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
@@ -338,6 +430,8 @@
 
       if (tabId === 'dashboardTab') {
         renderDashboard();
+      } else if (tabId === 'pendingTab') {
+        renderPendingTab();
       }
     }
 
@@ -450,6 +544,7 @@
       const countTab = (firstLine.match(/\t/g) || []).length;
       const countSemi = (firstLine.match(/;/g) || []).length;
       const countComma = (firstLine.match(/,/g) || []).length;
+      let activeDelimiter = ';';
 
       if (countTab >= countSemi && countTab >= countComma && countTab > 0) {
         activeDelimiter = '\t';
@@ -473,30 +568,53 @@
         return matches;
       }
 
-      rawHeaders = splitRow(lines[0]);
+      const rawHeaders = splitRow(lines[0]);
       database = [];
       const roomSet = new Set();
 
       let patrimonioColIdx = 0;
       let enderecoColIdx = 2;
       let respColIdx = 1;
+      let materialColIdx = 3;
+      let verificadoColIdx = -1;
+      let localEncontradoColIdx = -1;
 
       rawHeaders.forEach((h, idx) => {
         const hClean = h.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
         if (hClean.includes("patrimonio") || hClean.includes("tombo")) patrimonioColIdx = idx;
-        if (hClean.includes("endereco") || hClean.includes("centro gerencial")) enderecoColIdx = idx;
+        if (hClean.includes("endereco") || hClean.includes("centro gerencial") || hClean === "local original") enderecoColIdx = idx;
         if (hClean.includes("responsavel") || hClean.includes("nome")) respColIdx = idx;
+        if (hClean.includes("material")) materialColIdx = idx;
+        
+        if (hClean.includes("codigo_verificado") || hClean.includes("auditado")) verificadoColIdx = idx;
+        if (hClean.includes("local_encontrado") || hClean.includes("local encontrado") || hClean.includes("local movido")) localEncontradoColIdx = idx;
       });
 
       for (let i = 1; i < lines.length; i++) {
         const cols = splitRow(lines[i]);
         if (cols.length > 0 && cols[patrimonioColIdx]) {
           const patrimonio = cols[patrimonioColIdx] || '';
-          const enderecoRaw = cols[2] || cols[8] || cols[enderecoColIdx] || '';
           
-          let codVerificado = (cols[20] || '').trim().toUpperCase();
-          let dataAlteracao = (cols[16] || '').trim().toUpperCase();
-          let condicao = (cols[10] || '').trim();
+          const enderecoRaw = cols[enderecoColIdx] || cols[2] || cols[8] || '';
+          const responsavel = cols[respColIdx] || cols[1] || cols[17] || 'Não Informado';
+          const material = cols[materialColIdx] || cols[3] || 'Sem Descrição';
+          
+          let codVerificado = "";
+          let dataAlteracao = "";
+          let condicao = "";
+          let localEncontrado = "";
+
+          // Se for a planilha de 21 colunas
+          if (cols.length >= 10 && verificadoColIdx === -1) {
+            codVerificado = (cols[20] || '').trim().toUpperCase();
+            dataAlteracao = (cols[16] || '').trim().toUpperCase();
+            condicao = (cols[10] || '').trim();
+            localEncontrado = cols[18] || '';
+          } else {
+            // Se for nossa planilha simplificada
+            codVerificado = verificadoColIdx !== -1 ? (cols[verificadoColIdx] || '').trim().toUpperCase() : '';
+            localEncontrado = localEncontradoColIdx !== -1 ? (cols[localEncontradoColIdx] || '') : '';
+          }
 
           let isAuditado = false;
           if (codVerificado === "SIM") {
@@ -507,26 +625,13 @@
             isAuditado = true;
           }
 
-          const statusVerificado = isAuditado ? "SIM" : "NÃO";
-
           const item = {
             patrimonio: patrimonio,
-            unidade: cols[1] || 'FZEA', 
+            resp: responsavel,
             centroGerencial: enderecoRaw,
-            material: cols[3] || '', 
-            marca: cols[4] || '', 
-            modelo: cols[5] || '',
-            tipo: cols[6] || '', 
-            noSerie: cols[7] || '', 
-            valor: cols[8] || '',
-            resp: cols[9] || cols[17] || 'Não Informado', 
-            situacao: isAuditado ? (cols[9] || 'OK') : 'Pendente', 
-            condicao: condicao || (isAuditado ? 'OK' : 'Pendente'),
-            inventario: isAuditado ? (cols[12] || 'Confirmado OK') : 'Pendente', 
-            retirado: cols[13] || '',
-            localEncontrado: cols[18] || '', 
-            dataLeitura: cols[19] || '',
-            codigoVerificado: statusVerificado
+            material: material,
+            localEncontrado: localEncontrado, 
+            codigoVerificado: isAuditado ? "SIM" : "NÃO"
           };
 
           database.push(item);
@@ -678,14 +783,12 @@
 
       const normScanned = normalizeCode(decodedText);
       const resultBox = document.getElementById('scanResult');
-      const now = new Date().toLocaleString('pt-BR');
 
       const item = database.find(i => normalizeCode(i.patrimonio) === normScanned);
       const currentRoomNome = extrairNumeroSala(currentRoomInput);
 
       if (item) {
         item.codigoVerificado = "SIM";
-        item.dataLeitura = now;
         item.localEncontrado = currentRoomInput;
 
         const origRoomNorm = extrairNumeroSala(item.centroGerencial);
@@ -693,8 +796,6 @@
         const respText = item.resp ? `<b>Responsável:</b> ${item.resp}<br>` : '';
 
         if (origRoomNorm === currRoomNorm) {
-          item.inventario = "Confirmado OK";
-          item.situacao = "OK";
           playStatusBeep('ok');
           resultBox.innerHTML = `
             <div class="result-box status-ok">
@@ -704,9 +805,6 @@
               <b>Sala:</b> ${currentRoomNome}
             </div>`;
         } else {
-          const origRoomNome = extrairNumeroSala(item.centroGerencial);
-          item.inventario = "Movido de " + item.centroGerencial;
-          item.situacao = "OK (Movido)";
           playStatusBeep('warning');
           resultBox.innerHTML = `
             <div class="result-box status-warning">
@@ -731,15 +829,10 @@
 
           const newItem = {
             patrimonio: decodedText, 
-            unidade: "FZEA", 
+            resp: "Não Informado",
             centroGerencial: "Não Constava na Base",
             material: descFinal, 
-            marca: "", modelo: "", tipo: "", noSerie: "", valor: "", resp: "Não Informado",
-            situacao: "OK (Item Novo)", condicao: "Regularizado", 
-            inventario: "Item Novo Adicionado",
-            retirado: "", 
             localEncontrado: currentRoomInput, 
-            dataLeitura: now,
             codigoVerificado: "SIM"
           };
 
@@ -766,6 +859,16 @@
       return item.codigoVerificado === "SIM";
     }
 
+    function isMovido(item) {
+      if (!isVerificado(item)) return false;
+      if (!item.localEncontrado) return false;
+      
+      const orig = extrairNumeroSala(item.centroGerencial);
+      const enc = extrairNumeroSala(item.localEncontrado);
+      // Se tiver localEncontrado e ele for diferente da Origem, é movido.
+      return orig !== enc;
+    }
+
     function updateCounters() {
       const total = database.length;
       const audited = database.filter(isVerificado).length;
@@ -782,10 +885,88 @@
       div.className = 'history-item';
       
       const title = item ? item.material : "Novo Item Registrado";
-      const status = item ? item.inventario : "Item Novo";
+      const status = item ? (item.centroGerencial === item.localEncontrado ? "Confirmado" : "Movido") : "Item Novo";
       
       div.innerHTML = `<span><b>${code}</b> - ${title}</span> <span>${status}</span>`;
       historyList.insertBefore(div, historyList.firstChild);
+    }
+
+    // ABA PENDÊNCIAS POR RESPONSÁVEL
+    function renderPendingTab() {
+      const container = document.getElementById('pendingContainer');
+      if (database.length === 0) {
+        container.innerHTML = '<div class="card" style="text-align: center; color: #6c757d;">Carregue uma planilha de patrimônio para ver as pendências.</div>';
+        return;
+      }
+
+      const searchTerm = (document.getElementById('searchRespInput').value || '').toLowerCase().trim();
+
+      const respMap = {};
+      database.forEach(item => {
+        const respName = item.resp || "Não Informado";
+        if (!respMap[respName]) {
+          respMap[respName] = { total: 0, pendentes: [] };
+        }
+        respMap[respName].total++;
+        if (!isVerificado(item)) {
+          respMap[respName].pendentes.push(item);
+        }
+      });
+
+      const respList = Object.keys(respMap).sort();
+      let html = '';
+
+      respList.forEach((resp, idx) => {
+        if (searchTerm && !resp.toLowerCase().includes(searchTerm)) return;
+
+        const total = respMap[resp].total;
+        const pendingItems = respMap[resp].pendentes;
+        const pendingCount = pendingItems.length;
+
+        const isFullyDone = pendingCount === 0;
+        const badgeClass = isFullyDone ? 'badge-ok' : 'badge-pending';
+        const badgeText = isFullyDone ? '✅ Concluído (0 pendentes)' : `⚠️ ${pendingCount} pendente(s)`;
+
+        html += `
+          <div class="resp-accordion">
+            <div class="resp-header" onclick="toggleAccordion('respBody_${idx}')">
+              <span>👤 ${resp}</span>
+              <span class="${badgeClass}">${badgeText}</span>
+            </div>
+            <div id="respBody_${idx}" class="resp-body">
+              ${isFullyDone ? '<p style="color: #28a745; margin: 5px 0;">Todos os itens deste responsável já foram verificados!</p>' : `
+                <table class="dash-table">
+                  <thead>
+                    <tr>
+                      <th>Patrimônio</th>
+                      <th>Material</th>
+                      <th>Sala Esperada</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    ${pendingItems.map(p => `
+                      <tr>
+                        <td><b>${p.patrimonio}</b></td>
+                        <td>${p.material || 'Sem Descrição'}</td>
+                        <td>Sala ${obterNomeSala(p.centroGerencial)}</td>
+                      </tr>
+                    `).join('')}
+                  </tbody>
+                </table>
+              `}
+            </div>
+          </div>
+        `;
+      });
+
+      container.innerHTML = html || '<div class="card" style="text-align: center; color: #6c757d;">Nenhum responsável encontrado com esse termo.</div>';
+    }
+
+    function toggleAccordion(id) {
+      const el = document.getElementById(id);
+      if (el) {
+        el.classList.toggle('open');
+      }
     }
 
     function renderDashboard() {
@@ -793,15 +974,39 @@
       const auditedItems = database.filter(isVerificado);
       const auditedCount = auditedItems.length;
       const pendingCount = total - auditedCount;
-      const movedCount = database.filter(i => isVerificado(i) && (i.situacao.includes('Movido') || i.situacao.includes('Novo'))).length;
+      const movedCount = database.filter(isMovido).length;
       const progressPercent = total > 0 ? ((auditedCount / total) * 100).toFixed(1) : 0;
 
+      // KPIs
       document.getElementById('kpiTotal').innerText = total;
       document.getElementById('kpiAudited').innerText = auditedCount;
       document.getElementById('kpiPending').innerText = pendingCount;
       document.getElementById('kpiMoved').innerText = movedCount;
-      document.getElementById('kpiProgress').innerText = progressPercent + '%';
 
+      // Gráfico de Donut Central
+      document.getElementById('donutPercentText').innerText = progressPercent + '%';
+      const ctxDonut = document.getElementById('progressDonut').getContext('2d');
+      if (progressDonutInstance) progressDonutInstance.destroy();
+      
+      progressDonutInstance = new Chart(ctxDonut, {
+        type: 'doughnut',
+        data: {
+          labels: ['Verificados', 'Pendentes'],
+          datasets: [{
+            data: [auditedCount, pendingCount],
+            backgroundColor: ['#28a745', '#e9ecef'],
+            borderWidth: 0
+          }]
+        },
+        options: {
+          cutout: '75%',
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { display: false }, tooltip: { enabled: true } }
+        }
+      });
+
+      // Salas - Gráfico
       const roomsData = {};
       database.forEach(item => {
         const sala = (isVerificado(item) && item.localEncontrado) ? item.localEncontrado : (item.centroGerencial || "Não Definida");
@@ -818,41 +1023,6 @@
       const roomLabels = Object.keys(roomsData);
       const roomAuditados = roomLabels.map(k => roomsData[k].auditados);
       const roomTotais = roomLabels.map(k => roomsData[k].total);
-
-      const respData = {};
-      database.forEach(item => {
-        const resp = item.resp || "Sem Responsável";
-        if (!respData[resp]) {
-          respData[resp] = { total: 0, auditados: 0 };
-        }
-        respData[resp].total++;
-        if (isVerificado(item)) {
-          respData[resp].auditados++;
-        }
-      });
-
-      const respLabels = Object.keys(respData);
-      const respAuditados = respLabels.map(k => respData[k].auditados);
-      const respTotais = respLabels.map(k => respData[k].total);
-
-      const tbody = document.querySelector('#respTable tbody');
-      if (respLabels.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;">Carregue o CSV para visualizar os dados.</td></tr>';
-      } else {
-        tbody.innerHTML = '';
-        respLabels.forEach(r => {
-          const t = respData[r].total;
-          const a = respData[r].auditados;
-          const p = t > 0 ? ((a / t) * 100).toFixed(0) : 0;
-          tbody.innerHTML += `
-            <tr>
-              <td><b>${r}</b></td>
-              <td>${t}</td>
-              <td>${a}</td>
-              <td>${p}%</td>
-            </tr>`;
-        });
-      }
 
       const ctxRooms = document.getElementById('roomsChart').getContext('2d');
       if (roomsChartInstance) roomsChartInstance.destroy();
@@ -874,13 +1044,47 @@
             }
           ]
         },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          scales: { y: { beginAtZero: true } }
+        options: { responsive: true, maintainAspectRatio: false }
+      });
+
+      // Responsáveis - Gráfico e Tabela Restabelecidos
+      const respData = {};
+      database.forEach(item => {
+        const resp = item.resp || "Sem Responsável";
+        if (!respData[resp]) {
+          respData[resp] = { total: 0, auditados: 0 };
+        }
+        respData[resp].total++;
+        if (isVerificado(item)) {
+          respData[resp].auditados++;
         }
       });
 
+      const respLabels = Object.keys(respData);
+      const respAuditados = respLabels.map(k => respData[k].auditados);
+      const respTotais = respLabels.map(k => respData[k].total);
+
+      // Tabela de Responsáveis
+      const tbody = document.querySelector('#respTable tbody');
+      if (respLabels.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;">Carregue o CSV para visualizar os dados.</td></tr>';
+      } else {
+        tbody.innerHTML = '';
+        respLabels.forEach(r => {
+          const t = respData[r].total;
+          const a = respData[r].auditados;
+          const p = t > 0 ? ((a / t) * 100).toFixed(0) : 0;
+          tbody.innerHTML += `
+            <tr>
+              <td><b>${r}</b></td>
+              <td>${t}</td>
+              <td>${a}</td>
+              <td>${p}%</td>
+            </tr>`;
+        });
+      }
+
+      // Gráfico de Responsáveis
       const ctxResp = document.getElementById('respChart').getContext('2d');
       if (respChartInstance) respChartInstance.destroy();
 
@@ -904,38 +1108,52 @@
         options: {
           responsive: true,
           maintainAspectRatio: false,
-          indexAxis: 'y',
-          scales: { x: { beginAtZero: true } }
+          indexAxis: 'y'
         }
       });
     }
 
-    function exportCSV() {
+    // EXPORTAÇÃO ESTRUTURADA EM ORDEM ESPECÍFICA (TOTAL OU PENDENTES)
+    function exportCSVSimplificado(somentePendentes = false) {
       if (database.length === 0) {
         alert("Não existem dados para exportar.");
         return;
       }
 
-      let headers = rawHeaders.length > 0 ? [...rawHeaders] : [
-        "No.Patrimônio","Nome","Centro Gerencial","Material","Marca","Modelo",
-        "Tipo","N.Serie","Endereço/Local","Situação","Condição","Conservação",
-        "Utilização","Retirado/Recebido","Leilão","Forma de uso","Data Alteração","Responsável"
+      // ORDEM EXATA PEDIDA
+      const headers = [
+        "Nº Patrimônio",
+        "Responsável",
+        "Material",
+        "Local Original",
+        "Local Encontrado (Movido)",
+        "Auditado (SIM/NÃO)"
       ];
-
-      if (!headers.includes("Local_Encontrado")) headers.push("Local_Encontrado");
-      if (!headers.includes("Data_Leitura")) headers.push("Data_Leitura");
-      if (!headers.includes("Codigo_Verificado")) headers.push("Codigo_Verificado");
 
       let csvContent = "\uFEFF" + headers.map(h => `"${h}"`).join(";") + "\n";
 
-      database.forEach(row => {
-        let line = [
-          row.patrimonio, row.unidade, row.centroGerencial, row.material, row.marca,
-          row.modelo, row.tipo, row.noSerie, row.centroGerencial, row.situacao,
-          row.condicao, "", row.inventario, row.retirado, "", "", "", row.resp,
-          row.localEncontrado, row.dataLeitura, row.codigoVerificado
-        ];
+      // Filtra (se necessário) e Ordena sempre por Responsável
+      let dadosParaExportar = database;
+      
+      if (somentePendentes) {
+        dadosParaExportar = database.filter(item => !isVerificado(item));
+        if (dadosParaExportar.length === 0) {
+          alert("Todos os itens já foram auditados! Não há pendências.");
+          return;
+        }
+      }
 
+      dadosParaExportar.sort((a, b) => (a.resp || "").localeCompare(b.resp || ""));
+
+      dadosParaExportar.forEach(row => {
+        let line = [
+          row.patrimonio,
+          row.resp,
+          row.material,
+          obterNomeSala(row.centroGerencial),
+          row.localEncontrado ? obterNomeSala(row.localEncontrado) : "",
+          row.codigoVerificado
+        ];
         csvContent += line.map(v => `"${v || ''}"`).join(";") + "\n";
       });
 
@@ -943,7 +1161,12 @@
       const link = document.createElement("a");
       const url = URL.createObjectURL(blob);
       link.setAttribute("href", url);
-      link.setAttribute("download", `Patrimonio_Auditado_${new Date().toISOString().slice(0,10)}.csv`);
+      
+      const fileName = somentePendentes 
+        ? `Pendencias_Faltantes_${new Date().toISOString().slice(0,10)}.csv`
+        : `Patrimonio_Simplificado_${new Date().toISOString().slice(0,10)}.csv`;
+        
+      link.setAttribute("download", fileName);
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
