@@ -466,11 +466,23 @@
 
     function extrairNumeroSala(str) {
       if (!str) return '';
+      
+      // Força a conversão para texto e remove espaços nas bordas
+      str = String(str).trim();
+      
+      // 1. Busca especificamente os números dentro do primeiro parêntese: ex (12389)
       const matchParen = str.match(/\((\d+)\)/);
       if (matchParen) return matchParen[1];
+      
+      // 2. Busca qualquer sequência numérica logo no início do texto
       const matchStart = str.match(/^(\d+)/);
       if (matchStart) return matchStart[1];
-      return str.trim();
+      
+      // 3. Fallback: Pega a primeira sequência de 4 a 6 números que encontrar em qualquer lugar
+      const fallback = str.match(/\d{4,6}/);
+      if (fallback) return fallback[0];
+      
+      return str;
     }
 
     window.addEventListener('DOMContentLoaded', () => {
