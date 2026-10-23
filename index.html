@@ -103,26 +103,38 @@
       overflow: hidden; 
       border-radius: 8px; 
     }
+    
+    /* Caixas de Status da Leitura */
     .status-ok { 
       background: #d4edda; 
       color: #155724; 
-      border-left: 5px solid #28a745; 
+      border-left: 6px solid #28a745; 
     }
     .status-warning { 
       background: #fff3cd; 
       color: #856404; 
-      border-left: 5px solid #ffc107; 
+      border-left: 6px solid #ffc107; 
     }
     .status-danger { 
       background: #f8d7da; 
       color: #721c24; 
-      border-left: 5px solid #dc3545; 
+      border-left: 6px solid #dc3545; 
+    }
+    .status-info { 
+      background: #d1ecf1; 
+      color: #0c5460; 
+      border-left: 6px solid #17a2b8; 
     }
     .result-box { 
-      padding: 12px; 
-      margin-top: 10px; 
-      border-radius: 6px; 
+      padding: 15px; 
+      margin-top: 12px; 
+      border-radius: 8px;
+      font-size: 16px;
+      line-height: 1.5;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
     }
+    .result-box h3 { margin-top: 0; margin-bottom: 10px; font-size: 20px; }
+
     .history-item { 
       display: flex; 
       justify-content: space-between; 
@@ -313,7 +325,6 @@
       <h3>📊 3. Estado e Exportação</h3>
       <p>Total na Base: <strong id="totalCount">0</strong> | Auditados: <strong id="auditedCount">0</strong> (<span id="auditedPercent">0%</span>)</p>
       
-      <!-- Exporta a planilha SIMPLIFICADA total -->
       <button onclick="exportCSVSimplificado(false)" style="background: #28a745;">📥 Baixar Planilha Simplificada Total</button>
       
       <h4 style="margin-top: 20px;">Últimas Leituras:</h4>
@@ -391,7 +402,6 @@
         O que falta ser localizado, separado por pessoa.
       </p>
       
-      <!-- Exporta a planilha SIMPLIFICADA focada APENAS nas Pendências -->
       <button onclick="exportCSVSimplificado(true)" class="btn-warning">
         📥 Baixar Relatório de Pendências (Faltantes)
       </button>
@@ -454,7 +464,6 @@
       return str.toUpperCase();
     }
 
-    // EXTRAÇÃO COMPACTA DO NÚMERO DA SALA
     function extrairNumeroSala(str) {
       if (!str) return '';
       const matchParen = str.match(/\((\d+)\)/);
@@ -469,6 +478,8 @@
       for (let key in LOCAIS_PRECARREGADOS) {
         mepLocaisNorm[normalizeCode(key)] = LOCAIS_PRECARREGADOS[key];
       }
+      // Habilita áudio num simples toque na tela, vital para celulares.
+      document.body.addEventListener('click', initAudio, { once: true });
     });
 
     function obterNomeSala(codigoSala) {
@@ -478,21 +489,7 @@
       return extrairNumeroSala(salaRaw);
     }
 
-    function playScanBeep() {
-      try {
-        initAudio();
-        if (!audioCtx) return;
-        const osc = audioCtx.createOscillator();
-        const gain = audioCtx.createGain();
-        osc.connect(gain);
-        gain.connect(audioCtx.destination);
-        osc.frequency.value = 1200;
-        gain.gain.value = 0.2;
-        osc.start(audioCtx.currentTime);
-        osc.stop(audioCtx.currentTime + 0.08);
-      } catch(e){}
-    }
-
+    // Sistema de Bipes Aprimorado
     function playStatusBeep(type) {
       try {
         initAudio();
@@ -501,25 +498,29 @@
         gain.connect(audioCtx.destination);
 
         if (type === 'ok') {
+          // Bipe duplo rápido (Sucesso / Na Sala Correta)
           const osc1 = audioCtx.createOscillator();
           const osc2 = audioCtx.createOscillator();
           osc1.connect(gain); osc2.connect(gain);
-          osc1.frequency.value = 800; osc2.frequency.value = 1200;
+          osc1.frequency.value = 1000; osc2.frequency.value = 1400;
           gain.gain.value = 0.2;
           osc1.start(audioCtx.currentTime); osc1.stop(audioCtx.currentTime + 0.1);
-          osc2.start(audioCtx.currentTime + 0.1); osc2.stop(audioCtx.currentTime + 0.25);
+          osc2.start(audioCtx.currentTime + 0.15); osc2.stop(audioCtx.currentTime + 0.3);
         } else if (type === 'warning') {
+          // Bipe médio longo (Atenção / Item Movido)
           const osc = audioCtx.createOscillator();
           osc.connect(gain);
           osc.frequency.value = 500;
-          gain.gain.value = 0.25;
-          osc.start(audioCtx.currentTime); osc.stop(audioCtx.currentTime + 0.3);
-        } else if (type === 'danger') {
-          const osc = audioCtx.createOscillator();
-          osc.connect(gain);
-          osc.frequency.value = 220;
           gain.gain.value = 0.3;
-          osc.start(audioCtx.currentTime); osc.stop(audioCtx.currentTime + 0.4);
+          osc.start(audioCtx.currentTime); osc.stop(audioCtx.currentTime + 0.5);
+        } else if (type === 'danger') {
+          // Bipe grave rápido (Erro / Não Cadastrado)
+          const osc = audioCtx.createOscillator();
+          osc.type = 'square';
+          osc.connect(gain);
+          osc.frequency.value = 200;
+          gain.gain.value = 0.3;
+          osc.start(audioCtx.currentTime); osc.stop(audioCtx.currentTime + 0.6);
         }
       } catch(e){}
     }
@@ -604,14 +605,12 @@
           let condicao = "";
           let localEncontrado = "";
 
-          // Se for a planilha de 21 colunas
           if (cols.length >= 10 && verificadoColIdx === -1) {
             codVerificado = (cols[20] || '').trim().toUpperCase();
             dataAlteracao = (cols[16] || '').trim().toUpperCase();
             condicao = (cols[10] || '').trim();
             localEncontrado = cols[18] || '';
           } else {
-            // Se for nossa planilha simplificada
             codVerificado = verificadoColIdx !== -1 ? (cols[verificadoColIdx] || '').trim().toUpperCase() : '';
             localEncontrado = localEncontradoColIdx !== -1 ? (cols[localEncontradoColIdx] || '') : '';
           }
@@ -656,7 +655,7 @@
       const percent = total > 0 ? ((auditados / total) * 100).toFixed(1) : 0;
 
       document.getElementById('scanResult').innerHTML = `
-        <div class="result-box status-ok">
+        <div class="result-box status-info">
           ✅ <b>Planilha lida com sucesso!</b><br>
           • Total na base: <b>${total}</b> itens<br>
           • Já auditados previamente: <b>${auditados}</b> (${percent}%)<br>
@@ -669,6 +668,7 @@
     }
 
     function processManualInput() {
+      initAudio();
       const input = document.getElementById('manualCodeInput');
       const code = input.value.trim();
       
@@ -768,7 +768,7 @@
 
       if (!currentRoomInput) {
         playStatusBeep('danger');
-        document.getElementById('scanResult').innerHTML = `<div class="result-box status-danger">⚠️ Selecione a Sala Atual antes de prosseguir!</div>`;
+        document.getElementById('scanResult').innerHTML = `<div class="result-box status-danger"><h3>⚠️ Atenção!</h3> Selecione a Sala Atual antes de prosseguir!</div>`;
         return;
       }
 
@@ -779,11 +779,8 @@
         } catch (e) {}
       }
 
-      playScanBeep();
-
       const normScanned = normalizeCode(decodedText);
       const resultBox = document.getElementById('scanResult');
-
       const item = database.find(i => normalizeCode(i.patrimonio) === normScanned);
       const currentRoomNome = extrairNumeroSala(currentRoomInput);
 
@@ -793,26 +790,31 @@
 
         const origRoomNorm = extrairNumeroSala(item.centroGerencial);
         const currRoomNorm = extrairNumeroSala(currentRoomInput);
-        const respText = item.resp ? `<b>Responsável:</b> ${item.resp}<br>` : '';
 
         if (origRoomNorm === currRoomNorm) {
+          // SALA CORRETA
           playStatusBeep('ok');
           resultBox.innerHTML = `
             <div class="result-box status-ok">
-              <strong>🟢 CONFIRMADO!</strong> (${item.patrimonio})<br>
-              <b>Material:</b> ${item.material}<br>
-              ${respText}
-              <b>Sala:</b> ${currentRoomNome}
+              <h3 style="color: #155724;">🟢 Na Sala Correta!</h3>
+              <b>Patrimônio:</b> ${item.patrimonio}<br>
+              <b>Responsável:</b> ${item.resp}<br>
+              <b>Item:</b> ${item.material}<br>
+              <b>Localização:</b> Sala ${currentRoomNome}
             </div>`;
         } else {
+          // MOVIDO
           playStatusBeep('warning');
+          const origRoomNome = extrairNumeroSala(item.centroGerencial);
           resultBox.innerHTML = `
             <div class="result-box status-warning">
-              <strong>🟡 MOVIDO!</strong> (${item.patrimonio})<br>
-              <b>Material:</b> ${item.material}<br>
-              ${respText}
-              <b>Origem:</b> Sala ${origRoomNome}<br>
-              ➔ <b>Encontrado em:</b> Sala ${currentRoomNome}
+              <h3 style="color: #856404;">🟡 Item Movido!</h3>
+              <b>Patrimônio:</b> ${item.patrimonio}<br>
+              <b>Responsável:</b> ${item.resp}<br>
+              <b>Item:</b> ${item.material}<br>
+              <hr style="border: 0; border-top: 1px solid #ffeeba; margin: 10px 0;">
+              <b>Local Original:</b> Sala ${origRoomNome}<br>
+              ➔ <b>Local Encontrado:</b> Sala ${currentRoomNome}
             </div>`;
         }
 
@@ -821,10 +823,11 @@
         document.getElementById('btnNextScan').style.display = 'block';
 
       } else {
+        // NÃO ENCONTRADO / NOVO ITEM
         playStatusBeep('danger');
         
         setTimeout(() => {
-          const descUser = prompt(`🔴 Código ${decodedText} NÃO cadastrado!\n\nDigite a descrição do item:`, "Item sem cadastro prévio");
+          const descUser = prompt(`🔴 Código ${decodedText} NÃO CADASTRADO!\n\nDigite a descrição do item (Material):`, "Item sem cadastro prévio");
           const descFinal = (descUser && descUser.trim() !== '') ? descUser.trim() : "Item Novo / Não Cadastrado";
 
           const newItem = {
@@ -838,6 +841,15 @@
 
           database.push(newItem);
 
+          resultBox.innerHTML = `
+            <div class="result-box status-info">
+              <h3 style="color: #0c5460;">🔵 Novo Item Registrado!</h3>
+              <b>Patrimônio:</b> ${newItem.patrimonio}<br>
+              <b>Responsável:</b> ${newItem.resp}<br>
+              <b>Item:</b> ${newItem.material}<br>
+              <b>Local Encontrado:</b> Sala ${currentRoomNome}
+            </div>`;
+
           updateCounters();
           renderHistory(decodedText, null);
           document.getElementById('btnNextScan').style.display = 'block';
@@ -846,6 +858,7 @@
     }
 
     function triggerNextScan() {
+      initAudio();
       document.getElementById('btnNextScan').style.display = 'none';
       isPaused = false;
       if (isScanning && html5QrcodeScanner) {
@@ -865,7 +878,6 @@
       
       const orig = extrairNumeroSala(item.centroGerencial);
       const enc = extrairNumeroSala(item.localEncontrado);
-      // Se tiver localEncontrado e ele for diferente da Origem, é movido.
       return orig !== enc;
     }
 
@@ -1047,7 +1059,7 @@
         options: { responsive: true, maintainAspectRatio: false }
       });
 
-      // Responsáveis - Gráfico e Tabela Restabelecidos
+      // Responsáveis - Gráfico e Tabela
       const respData = {};
       database.forEach(item => {
         const resp = item.resp || "Sem Responsável";
@@ -1120,7 +1132,6 @@
         return;
       }
 
-      // ORDEM EXATA PEDIDA
       const headers = [
         "Nº Patrimônio",
         "Responsável",
@@ -1132,7 +1143,6 @@
 
       let csvContent = "\uFEFF" + headers.map(h => `"${h}"`).join(";") + "\n";
 
-      // Filtra (se necessário) e Ordena sempre por Responsável
       let dadosParaExportar = database;
       
       if (somentePendentes) {
