@@ -594,11 +594,17 @@
 
       for (let i = 1; i < lines.length; i++) {
         const cols = splitRow(lines[i]);
-        if (cols.length > 0 && cols[patrimonioColIdx]) {
-          const patrimonio = cols[patrimonioColIdx] || '';
+        if (cols.length > 0 && (cols[patrimonioColIdx] || cols[0])) {
           
-          const enderecoRaw = cols[enderecoColIdx] || cols[2] || cols[8] || '';
-          const responsavel = cols[respColIdx] || cols[1] || cols[17] || 'Não Informado';
+          const patrimonio = cols[patrimonioColIdx] || cols[0] || '';
+          
+          // Pega o texto bruto da Coluna I (índice 8)
+          let enderecoRaw = cols[enderecoColIdx] || cols[8] || ''; 
+          
+          // LIMPEZA: Extrai apenas o número (ex: tira "(12389) Av..." e deixa só "12389")
+          enderecoRaw = extrairNumeroSala(enderecoRaw);
+          
+          const responsavel = cols[respColIdx] || cols[14] || 'Não Informado';
           const material = cols[materialColIdx] || cols[3] || 'Sem Descrição';
           
           let codVerificado = "";
