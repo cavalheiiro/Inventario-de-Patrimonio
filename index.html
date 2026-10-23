@@ -701,22 +701,23 @@
 
     function startScanner() {
       const formatsToSupport = [
-        Html5QrcodeSupportedFormats.CODE_128,
-        Html5QrcodeSupportedFormats.CODE_39,
-        Html5QrcodeSupportedFormats.EAN_13,
-        Html5QrcodeSupportedFormats.ITF,
-        Html5QrcodeSupportedFormats.UPC_A
+        Html5QrcodeSupportedFormats.CODE_128,      // Código de barras tradicional
+        Html5QrcodeSupportedFormats.CODE_39,       // Código de barras tradicional
+        Html5QrcodeSupportedFormats.QR_CODE,       // QR Code padrão (quadrado)
+        Html5QrcodeSupportedFormats.PDF_417,       // Código 2D retangular (muito usado em IDs e logística)
+        Html5QrcodeSupportedFormats.DATA_MATRIX    // Código 2D (pode ser retangular ou quadrado)
       ];
 
       html5QrcodeScanner = new Html5Qrcode("interactive", { formatsToSupport: formatsToSupport, verbose: false });
 
       const config = {
-        fps: 25,
-        qrbox: { width: 320, height: 100 },
+        fps: 10, // 15 fps processa melhor no navegador do celular, evitando "engasgos"
+        qrbox: { width: 250, height: 150 }, // Caixa levemente menor para forçar o usuário a centralizar
         videoConstraints: {
           facingMode: "environment",
-          width: { min: 1280, ideal: 1920 },
-          height: { min: 720, ideal: 1080 }
+          width: { ideal: 1280 }, // 720p é o ponto ideal de velocidade/nitidez para web
+          height: { ideal: 720 },
+          advanced: [{ focusMode: "continuous" }] // Tenta forçar o foco automático contínuo
         },
         experimentalFeatures: { useBarCodeDetectorIfSupported: true }
       };
@@ -749,15 +750,23 @@
       if (!html5QrcodeScanner || !isScanning) return;
       try {
         const track = html5QrcodeScanner.getRunningTrack();
-        if (track && track.getCapabilities().torch) {
-          isTorchOn = !isTorchOn;
-          await track.applyConstraints({ advanced: [{ torch: isTorchOn }] });
-          document.getElementById('btnTorch').innerText = isTorchOn ? "💡 Desligar Flash" : "🔦 Ligar Flash";
-        } else {
-          alert("O flash não é suportado por este navegador.");
+        
+        if (track) {
+          const capabilities = track.getCapabilities();
+          
+          // Verifica se o navegador (ex: Safari no iOS) permite acessar a lanterna
+          if (capabilities.torch) {
+            isTorchOn = !isTorchOn;
+            await track.applyConstraints({
+              advanced: [{ torch: isTorchOn }]
+            });
+            document.getElementById('btnTorch').innerText = isTorchOn ? "💡 Desligar Flash" : "🔦 Ligar Flash";
+          } else {
+            alert("⚠️ O iOS (iPhone/iPad) restringe o acesso à lanterna diretamente pelo navegador Safari. Recomendamos melhorar a iluminação do ambiente.");
+          }
         }
       } catch (e) {
-        alert("Erro no flash: " + e.message);
+        alert("Erro ao tentar ligar o flash: " + e.message);
       }
     }
 
