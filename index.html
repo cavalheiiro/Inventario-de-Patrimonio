@@ -573,10 +573,11 @@
       database = [];
       const roomSet = new Set();
 
-      let patrimonioColIdx = 0;
-      let enderecoColIdx = 2;
-      let respColIdx = 1;
-      let materialColIdx = 3;
+      // Ajuste para o padrão exato da imagem enviada
+      let patrimonioColIdx = 0; // Coluna A
+      let enderecoColIdx = 8;   // Coluna I (Endereço/Local - onde está o número da sala)
+      let respColIdx = 14;      // Coluna O (Responsavel)
+      let materialColIdx = 3;   // Coluna D (Material)
       let verificadoColIdx = -1;
       let localEncontradoColIdx = -1;
 
