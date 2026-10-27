@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Auditoria de Patrimônio Mobile</title>
+  <title>Inventário & Auditoria de Patrimônio Mobile</title>
   <style>
     * { 
       box-sizing: border-box; 
@@ -50,7 +50,7 @@
       margin-bottom: 14px; 
       box-shadow: 0 2px 5px rgba(0,0,0,0.06); 
     }
-    input, select, button { 
+    input, select, button, textarea { 
       width: 100%; 
       padding: 12px; 
       margin-top: 6px; 
@@ -208,9 +208,32 @@
       color: #0284c7;
       margin-top: 4px;
     }
+
+    /* Modal Estilizado para Item Extra */
+    .modal-overlay {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0, 0, 0, 0.6);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+      padding: 15px;
+    }
+    .modal-overlay.active {
+      display: flex;
+    }
+    .modal-box {
+      background: #fff;
+      border-radius: 10px;
+      padding: 20px;
+      max-width: 450px;
+      width: 100%;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+    }
   </style>
 
-  <!-- PapaParse para leitor robusto de CSV e Bibliotecas Externas -->
+  <!-- Bibliotecas Externas -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
   <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -317,11 +340,30 @@
     </div>
   </div>
 
+  <!-- MODAL DE ITEM EXTRA (NÃO CADASTRADO) -->
+  <div id="extraModal" class="modal-overlay">
+    <div class="modal-box">
+      <h3 style="color: #dc2626; margin-bottom: 8px;">🔴 Item Não Cadastrado!</h3>
+      <p style="font-size: 14px; color: #475569; margin-bottom: 12px;">
+        O código <strong id="extraCodeDisplay"></strong> não consta na lista base. Deseja adicioná-lo como item extra nesta sala?
+      </p>
+      
+      <label style="font-size: 13px; font-weight: bold;">Descrição/Material do Item:</label>
+      <textarea id="extraDescInput" rows="3" placeholder="Ex: Cadeira de Escritório Azul, Monitor LG 24, etc."></textarea>
+      
+      <div style="display: flex; gap: 8px; margin-top: 15px;">
+        <button onclick="saveExtraItem()" style="background: #16a34a;">✅ Salvar Item Extra</button>
+        <button onclick="closeExtraModal()" style="background: #64748b;">Cancelar</button>
+      </div>
+    </div>
+  </div>
+
   <script>
     let rawHeaders = [];
     let database = [];
     let selectedRoom = '';
     let currentFilter = 'all';
+    let pendingExtraCode = '';
     let html5QrcodeScanner = null;
     let isScanning = false;
     let isPaused = false;
@@ -412,7 +454,6 @@
       database = [];
       const roomSet = new Set();
 
-      // Mapeamento automático de colunas
       let patIdx = 0, matIdx = 3, localIdx = 8, respIdx = 17, verifIdx = 20;
 
       rawHeaders.forEach((h, idx) => {
@@ -574,7 +615,6 @@
       }
       isPaused = false;
       onBarcodeScanned(code);
-      input.value = '';
     }
 
     function toggleScanner() {
@@ -619,6 +659,9 @@
         return;
       }
 
+      // ALTERAÇÃO 1: Preenche o valor no campo de inserção manual ao fazer a leitura
+      document.getElementById('manualCodeInput').value = decodedText;
+
       isPaused = true;
       playSound('scan');
 
@@ -661,14 +704,64 @@
         document.getElementById('btnNextScan').style.display = 'block';
 
       } else {
+        // ALTERAÇÃO 2: Código não cadastrado -> Abre janela modal para registrar Item Extra
         playSound('danger');
-        resultBox.innerHTML = `
-          <div class="result-box status-danger">
-            🔴 <strong>NÃO CADASTRADO!</strong><br>
-            O código <b>${decodedText}</b> não pertence a esta tabela.
-          </div>`;
-        document.getElementById('btnNextScan').style.display = 'block';
+        pendingExtraCode = decodedText;
+        document.getElementById('extraCodeDisplay').innerText = decodedText;
+        document.getElementById('extraDescInput').value = '';
+        document.getElementById('extraModal').classList.add('active');
       }
+    }
+
+    function saveExtraItem() {
+      const desc = document.getElementById('extraDescInput').value.trim() || 'Item Extra sem Descrição';
+      const now = new Date().toLocaleString('pt-BR');
+
+      // Cria a nova linha em formato de array compatível com o CSV de 21 colunas
+      const newCols = new Array(21).fill('');
+      newCols[0] = pendingExtraCode; // Patrimônio
+      newCols[1] = 'Não Especificado'; // Nome
+      newCols[2] = 'Item Extra Não Cadastrado Base'; // Centro Gerencial
+      newCols[3] = desc; // Material
+      newCols[8] = selectedRoom; // Local
+      newCols[9] = 'OK (Item Extra)'; // Situação
+      newCols[17] = 'Não Especificado'; // Responsável
+      newCols[18] = selectedRoom; // Local Encontrado
+      newCols[19] = now; // Data Leitura
+      newCols[20] = 'SIM'; // Código Verificado
+
+      const newItem = {
+        rawCols: newCols,
+        patrimonio: pendingExtraCode,
+        material: desc,
+        localOriginal: selectedRoom,
+        responsavel: 'Não Especificado',
+        codigoVerificado: 'SIM',
+        localEncontrado: selectedRoom,
+        dataLeitura: now,
+        situacao: 'OK (Item Extra)'
+      };
+
+      database.push(newItem);
+
+      closeExtraModal();
+      playSound('ok');
+
+      const resultBox = document.getElementById('scanResult');
+      resultBox.innerHTML = `
+        <div class="result-box status-ok" style="border-left-color: #8b5cf6; background: #f3e8ff; color: #6b21a8;">
+          🟣 <strong>ITEM EXTRA REGISTRADO!</strong><br>
+          <b>Código:</b> ${pendingExtraCode} | <b>Material:</b> ${desc}<br>
+          <b>Registrado em:</b> ${selectedRoom}
+        </div>`;
+
+      updateCounters();
+      renderPendingByResp();
+      document.getElementById('btnNextScan').style.display = 'block';
+    }
+
+    function closeExtraModal() {
+      document.getElementById('extraModal').classList.remove('active');
     }
 
     function triggerNextScan() {
